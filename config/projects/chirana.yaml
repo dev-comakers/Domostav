@@ -1,0 +1,69 @@
+# Project-specific configuration for Chirana (Mudřany)
+project_name: "Chirana"
+project_code: "chirana"
+location: "Mudřany"
+start_date: "2026-02"
+
+# SPP file configuration
+spp:
+  sheets:
+    - name: "Fakturace SoD - ZTI"
+      description: "Zdravotně technické instalace (plumbing)"
+      category_hint: "ZTI"
+      estimated_rows: 170
+    - name: "Fakturace SoD - ÚT"
+      description: "Ústřední topení (central heating)"
+      category_hint: "UT"
+      estimated_rows: 370
+  header_row: 5
+  data_start_row: 6
+  columns:
+    name: "I"
+    unit: "K"
+    quantity: "L"
+    price_per_unit: "M"
+    total: "N"
+    percent_month: "R"
+    total_month: "S"
+
+# Inventory file configuration
+inventory:
+  header_row: 11
+  data_start_row: 12
+  columns:
+    number: "B"
+    article: "D"
+    name: "F"
+    deviation: "K"
+    quantity_fact: "N"
+    quantity_accounting: "Q"
+    unit: "T"
+    price: "V"
+
+# Write-off rules (override general rules where specified)
+rules:
+  pipes:
+    waste_percent: 10
+    match_by: "diameter"
+  fittings:
+    ratio_to_pipes: "50/50 by cost"
+    match_by: "diameter"
+    distribute: "proportionally"
+  insulation:
+    match_to: "pipe_it_covers"
+    match_by: "diameter"
+    waste_percent: 5
+  consumables:
+    strategy: "write_to_zero"
+    auto_approve: true
+  reductions:
+    split: "50/50 between diameters"
+  tolerance:
+    ok: 0.15
+    warning: 0.30
+
+# Project-specific notes
+notes: |
+  Chirana is a large project with ZTI (plumbing) and ÚT (heating) sections.
+  The SPP file uses Czech terminology for construction works.
+  Inventory numbers follow the 1C accounting system format.
