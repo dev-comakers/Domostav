@@ -112,6 +112,7 @@ def mapping_to_dict(mapping: ColumnMapping) -> dict[str, Any]:
         "total": mapping.total,
         "percent_month": mapping.percent_month,
         "total_month": mapping.total_month,
+        "sheet_name": mapping.sheet_name,
         "header_row": mapping.header_row,
         "data_start_row": mapping.data_start_row,
     }
@@ -413,11 +414,25 @@ def run_analysis_pipeline(
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             output_path = str(OUTPUT_DIR / f"analysis_{project}_{ts}.xlsx")
         data_start = config.get("inventory", {}).get("data_start_row", DEFAULT_INVENTORY_DATA_START)
+        # region agent log
+        _debug_log(
+            "H2",
+            "services/pipeline_service.py:generate_output",
+            "Preparing Excel export",
+            {
+                "inventory_path": str(inventory_path),
+                "inventory_mapping_sheet_name": getattr(inv_mapping, "sheet_name", None) if inv_mapping else None,
+                "inventory_mapping_data_start_row": getattr(inv_mapping, "data_start_row", None) if inv_mapping else None,
+                "recommendation_count": len(recommendations),
+            },
+        )
+        # endregion
         out = generate_output(
             source_path=inventory_path,
             output_path=output_path,
             recommendations=recommendations,
             data_start_row=data_start,
+            sheet_name=getattr(inv_mapping, "sheet_name", None) if inv_mapping else None,
             summary=summary,
             spp_coverage=spp_coverage,
         )
@@ -564,7 +579,7 @@ def _build_spp_coverage(
             comment = "Nepokryto — zadna polozka ze skladu nebyla prirazena"
 
         coverage.append({
-            "spp_row": spp.row,
+            "spp_row": spp.source_row,
             "spp_sheet": spp.sheet,
             "spp_name": spp.name,
             "spp_unit": spp.unit,
@@ -647,11 +662,12 @@ def _build_review_payload(inventory_items: list, recommendations: list, spp_item
         spp_options.append(
             {
                 "row": spp.row,
+                "source_row": spp.source_row,
                 "sheet": spp.sheet,
                 "name": spp.name,
                 "unit": spp.unit,
                 "qty_month": qty_month,
-                "label": f"[{spp.sheet}] Row {spp.row}: {spp.name[:90]}",
+                "label": f"[{spp.sheet}] Row {spp.source_row}: {spp.name[:90]}",
             }
         )
 

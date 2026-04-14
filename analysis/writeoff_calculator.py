@@ -93,23 +93,23 @@ def calculate_expected_writeoff(
 
     if inv_item.category == MaterialCategory.PIPE:
         expected = _calc_pipe_writeoff(inv_item, matched_spp, pipe_waste)
-        spp_refs = [f"[{s.sheet}] Row {s.row}: {s.name}" for s in matched_spp[:1]]
+        spp_refs = [f"[{s.sheet}] Row {s.source_row}: {s.name}" for s in matched_spp[:1]]
 
     elif inv_item.category == MaterialCategory.FITTING:
         expected = _calc_fitting_writeoff(inv_item, matched_spp, all_inventory, fitting_ratio)
-        spp_refs = [f"[{s.sheet}] Row {s.row}: {s.name}" for s in matched_spp[:1]]
+        spp_refs = [f"[{s.sheet}] Row {s.source_row}: {s.name}" for s in matched_spp[:1]]
 
     elif inv_item.category == MaterialCategory.INSULATION:
         expected = _calc_insulation_writeoff(inv_item, matched_spp, insulation_waste)
-        spp_refs = [f"[{s.sheet}] Row {s.row}: {s.name}" for s in matched_spp[:1]]
+        spp_refs = [f"[{s.sheet}] Row {s.source_row}: {s.name}" for s in matched_spp[:1]]
 
     elif inv_item.category == MaterialCategory.VALVE:
         expected = _calc_valve_writeoff(inv_item, matched_spp)
-        spp_refs = [f"[{s.sheet}] Row {s.row}: {s.name}" for s in matched_spp[:1]]
+        spp_refs = [f"[{s.sheet}] Row {s.source_row}: {s.name}" for s in matched_spp[:1]]
 
     else:
         expected = _calc_generic_writeoff(inv_item, matched_spp)
-        spp_refs = [f"[{s.sheet}] Row {s.row}: {s.name}" for s in matched_spp[:1]]
+        spp_refs = [f"[{s.sheet}] Row {s.source_row}: {s.name}" for s in matched_spp[:1]]
 
     # Determine status
     status = _determine_status(expected, inv_item.deviation, tol_ok, tol_warning)

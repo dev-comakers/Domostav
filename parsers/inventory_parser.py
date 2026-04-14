@@ -52,8 +52,16 @@ def parse_inventory(
     wb = openpyxl.load_workbook(str(filepath), data_only=True, read_only=not looks_fakturace)
     try:
         primary_sheet_name = sheet_name or _select_primary_inventory_sheet(wb, mapping)
+        if mapping is not None:
+            mapping.sheet_name = primary_sheet_name
         ws = wb[primary_sheet_name]
-        items = _parse_inventory_sheet_with_mapping(ws, mapping)
+        adaptive_mapping = _detect_inventory_mapping_from_headers(ws)
+        active_mapping = mapping
+        if adaptive_mapping and not _mapping_has_enough_rows(ws, mapping):
+            active_mapping = adaptive_mapping
+            active_mapping.sheet_name = primary_sheet_name
+            mapping.sheet_name = primary_sheet_name
+        items = _parse_inventory_sheet_with_mapping(ws, active_mapping)
         # Fallback for Fakturace-like sheets where classic mapping yields nothing useful.
         if len(items) < 10 or looks_fakturace or "soupis prac" in _sheet_signature(ws):
             fallback_items = _parse_fakturace_like_workbook(wb)
@@ -83,9 +91,7 @@ def get_inventory_preview(
 
 def _sheet_signature(ws: openpyxl.worksheet.worksheet.Worksheet) -> str:
     parts: list[str] = []
-    max_col = min(ws.max_column, 30)
-    for row_idx in range(1, 16):
-        row_vals = [ws.cell(row_idx, c).value for c in range(1, max_col + 1)]
+    for row_vals in ws.iter_rows(min_row=1, max_row=15, max_col=min(ws.max_column, 30), values_only=True):
         text = " ".join(str(v) for v in row_vals if v not in (None, ""))
         if text:
             parts.append(text.lower())
@@ -119,6 +125,81 @@ def _select_primary_inventory_sheet(
         scored.append((score, name))
     scored.sort(reverse=True)
     return scored[0][1] if scored else wb.active.title
+
+
+def _detect_inventory_mapping_from_headers(
+    ws: openpyxl.worksheet.worksheet.Worksheet,
+) -> ColumnMapping | None:
+    max_col = min(ws.max_column, 40)
+    rows = list(ws.iter_rows(min_row=1, max_row=min(ws.max_row, 30), max_col=max_col, values_only=True))
+
+    def normalize(val: Any) -> str:
+        return str(val or "").strip().lower()
+
+    for row_idx, row_vals in enumerate(rows, 1):
+        next_vals = rows[row_idx] if row_idx < len(rows) else ()
+        row_text = " | ".join(normalize(v) for v in row_vals if v not in (None, ""))
+        if not any(key in row_text for key in ("товар", "název", "nazev", "popis", "матеріал", "material")):
+            continue
+
+        def find_col(keys: tuple[str, ...]) -> int | None:
+            for col_idx in range(1, max_col + 1):
+                top = normalize(row_vals[col_idx - 1] if col_idx - 1 < len(row_vals) else None)
+                bottom = normalize(next_vals[col_idx - 1] if col_idx - 1 < len(next_vals) else None)
+                combined = f"{top} {bottom}".strip()
+                if any(key in combined for key in keys):
+                    return col_idx
+            return None
+
+        name_col = find_col(("товар", "název", "nazev", "popis", "матеріал", "material"))
+        if not name_col:
+            continue
+
+        row_col = find_col(("№", "č.", "pč", "por."))
+        deviation_col = find_col(("відхил", "odchyl", "deviation", "rozdíl", "rozdil"))
+        quantity_col = find_col(("кількість", "množství", "mnozstvi", "fact", "факт"))
+        unit_col = find_col(("mj", "jed", "unit", "од."))
+        article_col = find_col(("код", "kód", "kod", "article", "artikl"))
+        price_col = find_col(("цена", "cena", "price", "j.cena", "jedn.cena"))
+
+        data_start_row = row_idx + 2 if any(normalize(v) for v in next_vals) else row_idx + 1
+        return ColumnMapping(
+            row_number=openpyxl.utils.get_column_letter(row_col) if row_col else None,
+            article=openpyxl.utils.get_column_letter(article_col) if article_col else None,
+            name=openpyxl.utils.get_column_letter(name_col),
+            unit=openpyxl.utils.get_column_letter(unit_col) if unit_col else None,
+            quantity=openpyxl.utils.get_column_letter(quantity_col) if quantity_col else None,
+            quantity_accounting=None,
+            deviation=openpyxl.utils.get_column_letter(deviation_col) if deviation_col else None,
+            price=openpyxl.utils.get_column_letter(price_col) if price_col else None,
+            total=None,
+            header_row=row_idx,
+            data_start_row=data_start_row,
+        )
+    return None
+
+
+def _mapping_has_enough_rows(
+    ws: openpyxl.worksheet.worksheet.Worksheet,
+    mapping: ColumnMapping,
+    min_rows: int = 5,
+) -> bool:
+    if not mapping.name:
+        return False
+    idx = col_letter_to_index(mapping.name) - 1
+    non_empty = 0
+    for row in ws.iter_rows(
+        min_row=max(1, mapping.data_start_row),
+        max_row=min(ws.max_row, mapping.data_start_row + 60),
+        values_only=True,
+    ):
+        if idx < len(row):
+            val = row[idx]
+            if val not in (None, "") and str(val).strip():
+                non_empty += 1
+                if non_empty >= min_rows:
+                    return True
+    return False
 
 
 def _to_float(val: Any) -> float | None:

@@ -44,6 +44,7 @@ class ColumnMapping(BaseModel):
     total: Optional[str] = None
     percent_month: Optional[str] = None
     total_month: Optional[str] = None
+    sheet_name: Optional[str] = None
     header_row: int = 1
     data_start_row: int = 2
 
@@ -51,6 +52,7 @@ class ColumnMapping(BaseModel):
 class SPPItem(BaseModel):
     """A single line item from the SPP (list of performed works)."""
     row: int
+    source_row: int
     sheet: str
     name: str
     unit: Optional[str] = None

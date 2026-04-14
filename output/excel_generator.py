@@ -63,6 +63,42 @@ AI_COLUMNS = [
 ]
 
 
+def _pick_td_sheet_name(wb: openpyxl.Workbook) -> str:
+    preferred_tokens = ("asr", "kanal", "vodo", "vytap", "chlazen", "zavlah")
+    excluded_names = {"ai summary", "spp coverage"}
+    candidates: list[tuple[int, str]] = []
+    for name in wb.sheetnames:
+        low = name.strip().lower()
+        if low in excluded_names:
+            continue
+        ws = wb[name]
+        score = 0
+        if any(tok in low for tok in preferred_tokens):
+            score += 100
+        if "rekap" in low or "summary" in low:
+            score -= 60
+        score += min(ws.max_row, 400) // 10
+        score += min(ws.max_column, 80)
+        candidates.append((score, name))
+    if not candidates:
+        return wb.active.title
+    candidates.sort(reverse=True)
+    return candidates[0][1]
+
+
+def _ensure_td_sheet_from_source(
+    wb: openpyxl.Workbook,
+    requested_sheet_name: str | None,
+) -> tuple[openpyxl.worksheet.worksheet.Worksheet, str]:
+    source_name = requested_sheet_name if requested_sheet_name in wb.sheetnames else _pick_td_sheet_name(wb)
+    source_ws = wb[source_name] if source_name in wb.sheetnames else wb.active
+    if "TDSheet" in wb.sheetnames:
+        del wb["TDSheet"]
+    td_ws = wb.copy_worksheet(source_ws)
+    td_ws.title = "TDSheet"
+    return td_ws, source_ws.title
+
+
 def _human_method_label(method: MatchMethod) -> str:
     if method == MatchMethod.MANUAL:
         return "Manual override"
@@ -123,7 +159,23 @@ def generate_output(
     shutil.copy2(source_path, output_path)
 
     wb = openpyxl.load_workbook(str(output_path))
-    ws = wb[sheet_name] if sheet_name else wb.active
+    ws, source_sheet_name = _ensure_td_sheet_from_source(wb, sheet_name)
+    # region agent log
+    _debug_log(
+        "H2",
+        "output/excel_generator.py:ws-selection",
+        "Excel target sheet selected",
+        {
+            "requested_sheet_name": sheet_name,
+            "auto_selected_sheet_name": source_sheet_name,
+            "selected_sheet_name": ws.title,
+            "workbook_sheet_names": list(wb.sheetnames),
+            "data_start_row": data_start_row,
+            "ws_max_row": ws.max_row,
+            "ws_max_col": ws.max_column,
+        },
+    )
+    # endregion
 
     ai_start_col = ws.max_column + 2
     header_row = data_start_row - 1
@@ -214,8 +266,7 @@ def generate_output(
             cell.value = rec.deviation_percent / 100
 
     _add_summary_sheet(wb, recommendations, summary=summary)
-    if spp_coverage:
-        _add_spp_coverage_sheet(wb, spp_coverage)
+    _add_spp_coverage_sheet(wb, spp_coverage or [])
     sheet_names = list(wb.sheetnames)
     wb.save(str(output_path))
     wb.close()

@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import json
 import os
+import time
 from datetime import datetime
 from pathlib import Path
 import uuid
@@ -26,6 +27,24 @@ app.config["JSON_AS_ASCII"] = False
 UPLOAD_DIR = DATA_DIR / "uploads"
 DB_PATH = DATA_DIR / "app.db"
 store = SessionStore(DB_PATH)
+_DEBUG_LOG_PATH = "/Users/dmytriivezerian/Desktop/Domostav x Fajnwork/.cursor/debug-f07731.log"
+
+
+def _debug_log(hypothesis_id: str, location: str, message: str, data: dict) -> None:
+    payload = {
+        "sessionId": "f07731",
+        "runId": "initial",
+        "hypothesisId": hypothesis_id,
+        "location": location,
+        "message": message,
+        "data": data,
+        "timestamp": int(time.time() * 1000),
+    }
+    try:
+        with open(_DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
 
 
 def _ensure_dirs() -> None:
@@ -80,6 +99,7 @@ def _run_pipeline(
     nf45_path: str | None,
     generate_excel: bool,
 ):
+    effective_overrides = store.get_effective_overrides(project_code)
     alias_rules = store.get_effective_rules(project_code, "alias")
     category_rules = store.get_effective_rules(project_code, "category")
     alias_map: dict[str, str] = {}
@@ -89,6 +109,21 @@ def _run_pipeline(
         canonical = (val.get("canonical") or "").strip()
         if alias and canonical:
             alias_map[alias] = canonical
+
+    # region agent log
+    _debug_log(
+        "H3",
+        "webapp.py:_run_pipeline",
+        "Pipeline input context",
+        {
+            "project_code": project_code,
+            "effective_override_count": len(effective_overrides),
+            "effective_override_sample": list(effective_overrides.keys())[:8],
+            "rules_path_present": bool(rules_path),
+            "nomenclature_present": bool(nomenclature_path),
+        },
+    )
+    # endregion
 
     pipeline_mod = _load_pipeline_module()
     return pipeline_mod.run_analysis_pipeline(
@@ -104,7 +139,7 @@ def _run_pipeline(
         rules_xlsm_path=rules_path,
         nomenclature_path=nomenclature_path,
         nf45_path=nf45_path,
-        overrides=store.get_effective_overrides(project_code),
+        overrides=effective_overrides,
         alias_map=alias_map,
         category_rules=category_rules,
         generate_excel=generate_excel,
@@ -163,34 +198,8 @@ def _finalize_from_cached_artifacts(draft: dict) -> dict[str, object]:
 
 
 def _validate_upload_slots(spp, inventory, nf45, rules_file) -> str | None:
-    """Basic filename validation to prevent users from mixing upload slots."""
-    spp_name = (spp.filename or "").lower()
-    inv_name = (inventory.filename or "").lower()
-    nf45_name = (nf45.filename or "").lower() if nf45 else ""
-    rules_name = (rules_file.filename or "").lower() if rules_file else ""
-
-    if "spp" not in spp_name:
-        return "Slot SPP: vyberte soubor SPP (napr. 'SPP Chirana ...xlsm')."
-    if "invent" in spp_name or "nf-30" in spp_name or "номенклат" in spp_name:
-        return "Slot SPP: nahran spatny soubor. Vyberte SPP, ne Inventuru/Nomenklaturu."
-
-    inv_ok = (
-        ("invent" in inv_name)
-        or ("nf-30" in inv_name)
-        or ("fakturace" in inv_name)
-        or ("soupis" in inv_name)
-    )
-    if not inv_ok:
-        return "Slot Inventura: vyberte inventarizaci NF-30 nebo soupis/fakturaci s polozkami."
-    if "spp" in inv_name or "правил" in inv_name or "topeni+kanalizace" in inv_name:
-        return "Slot Inventura: nahran spatny soubor. Vyberte Inventuru NF-30."
-
-    if nf45 and ("nf-45" not in nf45_name) and ("списан" not in nf45_name):
-        return "Slot NF-45: vyberte soubor NF-45 (fakticke списание), nebo nechte prazdne."
-
-    if rules_file and ("правил" not in rules_name) and ("topeni+kanalizace" not in rules_name) and ("rules" not in rules_name):
-        return "Slot Rules: vyberte soubor pravidel (SPP_Chirana_...pravila...)."
-
+    """Filename checks are intentionally disabled to avoid false rejects."""
+    _ = (spp, inventory, nf45, rules_file)
     return None
 
 
@@ -384,6 +393,20 @@ def save_override():
             if store.delete_scoped_override("project", project, item_key):
                 removed.append("project")
         status = store.get_override_status(project, item_key)
+        # region agent log
+        _debug_log(
+            "H4",
+            "webapp.py:/api/overrides",
+            "Override delete requested",
+            {
+                "project": project,
+                "scope": scope,
+                "item_key": item_key,
+                "removed_scopes": removed,
+                "status_after_delete": status,
+            },
+        )
+        # endregion
         return jsonify({"ok": True, "action": "delete", "removed_scopes": removed, "status": status})
 
     if not item_key or not isinstance(rows, list):
@@ -398,6 +421,20 @@ def save_override():
         store.save_scoped_override("project", project, item_key, normalized_rows, reason)
         saved.append("project")
     status = store.get_override_status(project, item_key)
+    # region agent log
+    _debug_log(
+        "H4",
+        "webapp.py:/api/overrides",
+        "Override save requested",
+        {
+            "project": project,
+            "scope": scope,
+            "item_key": item_key,
+            "saved_scopes": saved,
+            "status_after_save": status,
+        },
+    )
+    # endregion
     return jsonify({"ok": True, "action": "save", "saved_scopes": saved, "status": status})
 
 
@@ -428,6 +465,24 @@ def save_overrides_bulk():
             saved_count += 1
         except Exception as exc:
             failed.append({"index": idx, "error": str(exc)})
+    # region agent log
+    _debug_log(
+        "H4",
+        "webapp.py:/api/overrides/bulk",
+        "Bulk overrides saved",
+        {
+            "project": project,
+            "scope": scope,
+            "incoming_rows": len(rows),
+            "saved_count": saved_count,
+            "failed_count": len(failed),
+            "sample_item_keys": [
+                (r.get("item_key") or _override_item_key((r.get("article") or ""), r.get("inventory_row")))
+                for r in rows[:8]
+            ],
+        },
+    )
+    # endregion
     return jsonify({"ok": True, "saved_count": saved_count, "failed": failed})
 
 

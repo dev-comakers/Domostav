@@ -1042,6 +1042,18 @@
     font-size: 13px;
   }
 
+  .review-select-cell {
+    width: 44px;
+    text-align: center;
+  }
+
+  .review-row-toggle {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--blue);
+    cursor: pointer;
+  }
+
   .training-panel {
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
@@ -1069,6 +1081,11 @@
     font-family: inherit;
   }
 
+  .training-input.multiline {
+    min-height: 92px;
+    resize: vertical;
+  }
+
   .training-status {
     font-size: 12px;
     color: var(--text-dim);
@@ -1086,6 +1103,62 @@
     line-height: 1.5;
     max-height: 140px;
     overflow: auto;
+  }
+
+  .review-toolbar-meta {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .rule-item {
+    display: grid;
+    gap: 6px;
+    padding: 8px 0;
+    border-bottom: 1px dashed var(--border);
+  }
+
+  .rule-item:last-child {
+    border-bottom: none;
+  }
+
+  .rule-item-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    color: var(--text);
+  }
+
+  .rule-item-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .rule-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface-3);
+    color: var(--text-dim);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .rule-text {
+    color: var(--text-dim);
+    line-height: 1.45;
+    word-break: break-word;
   }
 
   .processing-overlay {
@@ -1357,7 +1430,11 @@
             <button class="review-filter-btn" type="button" data-review-filter="unmatched">Jen bez shody</button>
             <button class="review-filter-btn" type="button" data-review-filter="anomalies">Jen anomalie</button>
           </div>
-          <div style="font-size:12px;color:var(--text-dim)">Podle potreby zapnete "Tabulka na celou sirku" v hornim panelu.</div>
+          <div class="review-toolbar-meta">
+            <span id="reviewSelectionMeta">Vybrano 0 radku pro hromadnou akci.</span>
+            <button class="btn btn-secondary" id="reviewSelectUnmatchedBtn" type="button">Oznacit bez shody</button>
+            <button class="btn btn-secondary" id="reviewClearSelectionBtn" type="button">Zrusit vyber</button>
+          </div>
         </div>
         <div class="training-panel">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
@@ -1365,6 +1442,7 @@
             <button class="btn btn-secondary" id="trainingSnapshotBtn" type="button">Ulozit verzi pravidel</button>
           </div>
           <div class="training-grid">
+            <input class="training-input" id="trainingSppSearch" list="trainingSppDatalist" placeholder="Hledat SPP podle nazvu, HT, DN40...">
             <select class="training-input" id="trainingSppRow"></select>
             <select class="training-input" id="trainingScope">
               <option value="project">Ulozit pro projekt</option>
@@ -1372,7 +1450,8 @@
               <option value="both">Ulozit pro projekt i system</option>
             </select>
             <input class="training-input" id="trainingReason" placeholder="Poznamka k pravidlu">
-            <button class="btn btn-primary" id="trainingApplyUnmatchedBtn" type="button">Pouzit na vsechny "Bez shody"</button>
+            <button class="btn btn-primary" id="trainingApplySelectedBtn" type="button">Pouzit na vybrane radky</button>
+            <button class="btn btn-secondary" id="trainingApplyUnmatchedBtn" type="button">Pouzit na vsechny "Bez shody"</button>
           </div>
           <div class="training-grid">
             <input class="training-input" id="trainingFilesInput" type="file" multiple accept=".xlsx,.xlsm,.xls,.csv">
@@ -1382,6 +1461,15 @@
             Co sem muzete nahrat: SPP, Inventura/NF-30 nebo soupis/fakturace, NF-45, pravidla, nomenklatura.
           </div>
           <div class="rule-list" id="trainingFilesResult">Soubory pro trenink zatim nejsou nahrane.</div>
+          <div class="training-grid">
+            <textarea class="training-input multiline" id="textRuleInput" placeholder="Textove pravidlo / poznamka pro pamet systemu. Napr.: PPR voda 25x3,5 mapovat jen na studena voda nebo cirkulace, nikdy ne na HT odpad."></textarea>
+            <input class="training-input" id="textRuleLabel" placeholder="Kratky nazev pravidla">
+            <select class="training-input" id="textRuleScope">
+              <option value="project">Textove pravidlo pro projekt</option>
+              <option value="system">Textove pravidlo pro system</option>
+            </select>
+            <button class="btn btn-secondary" id="saveTextRuleBtn" type="button">Ulozit textove pravidlo</button>
+          </div>
           <div class="training-grid">
             <input class="training-input" id="aliasFromInput" placeholder="Alias (napr. CK)">
             <input class="training-input" id="aliasToInput" placeholder="Kanonicky nazev (napr. cistici kus)">
@@ -1413,12 +1501,18 @@
             <button class="btn btn-secondary" id="saveCategoryRuleBtn" type="button">Ulozit kategorii</button>
           </div>
           <div class="training-status" id="trainingStatus">Pripraveno: vyberte SPP radek a muzete ucit pravidla hromadne.</div>
+          <div class="training-grid">
+            <input class="training-input" id="ruleFilterInput" placeholder="Filtrovat registr pravidel podle textu, typu nebo scope">
+          </div>
           <div class="rule-list" id="ruleListBox">Pravidla se nacitaji…</div>
         </div>
+        <datalist id="trainingSppDatalist"></datalist>
+        <datalist id="reviewSppDatalist"></datalist>
         <div class="review-table-wrap">
           <table class="review-table">
             <thead>
               <tr>
+                <th class="review-select-cell">Vyber</th>
                 <th>Row</th>
                 <th>Material</th>
                 <th>Fakt</th>
@@ -1532,6 +1626,8 @@
     review: null,
     reviewFilter: "all",
     rules: [],
+    selectedReviewRows: new Set(),
+    sppLookup: new Map(),
   };
 
   async function fetchJson(url, options = {}) {
@@ -1754,14 +1850,42 @@
     `;
   }
 
+  function buildSppLookupValue(item) {
+    return `${item.name || "SPP"} | [${item.sheet}] Row ${item.source_row} | ID:${item.row}`;
+  }
+
+  function parseSppLookupRow(value) {
+    const match = String(value || "").match(/ID:(\d+)/);
+    return match ? Number(match[1]) : 0;
+  }
+
+  function updateReviewSelectionMeta() {
+    const el = document.getElementById("reviewSelectionMeta");
+    if (!el) return;
+    const count = state.selectedReviewRows.size;
+    el.textContent = count
+      ? `Vybrano ${count} radku pro hromadnou akci.`
+      : "Vybrano 0 radku pro hromadnou akci.";
+  }
+
   function populateTrainingSppOptions() {
     const select = document.getElementById("trainingSppRow");
+    const trainingList = document.getElementById("trainingSppDatalist");
+    const reviewList = document.getElementById("reviewSppDatalist");
     if (!select) return;
     const options = state.review?.spp_options || [];
+    state.sppLookup = new Map();
     select.innerHTML = [
       `<option value="">Vyberte SPP radek pro hromadne pravidlo…</option>`,
       ...options.map((item) => `<option value="${item.row}">${escapeHtml(item.label)}</option>`),
     ].join("");
+    const lookupOptions = options.map((item) => {
+      const lookupValue = buildSppLookupValue(item);
+      state.sppLookup.set(lookupValue, item.row);
+      return `<option value="${escapeHtml(lookupValue)}"></option>`;
+    }).join("");
+    if (trainingList) trainingList.innerHTML = lookupOptions;
+    if (reviewList) reviewList.innerHTML = lookupOptions;
   }
 
   function fmtReviewNumber(value) {
@@ -1801,7 +1925,7 @@
       caption.textContent = labels[state.reviewFilter] || labels.all;
     }
     if (!rows.length) {
-      body.innerHTML = `<tr><td colspan="12" class="review-empty">Zadne radky pro zvoleny filtr.</td></tr>`;
+      body.innerHTML = `<tr><td colspan="13" class="review-empty">Zadne radky pro zvoleny filtr.</td></tr>`;
       return;
     }
     const optionsHtml = sppOptionsMarkup();
@@ -1811,8 +1935,12 @@
       const deviationText = item.deviation_percent === null || item.deviation_percent === undefined
         ? "—"
         : `${Number(item.deviation_percent).toFixed(1)}%`;
+      const isSelected = state.selectedReviewRows.has(item.item_key);
       return `
         <tr class="${rowClass}" data-item-key="${escapeHtml(item.item_key)}" data-inventory-row="${item.inventory_row}" data-article="${escapeHtml(item.article || "")}">
+          <td class="review-select-cell">
+            <input class="review-row-toggle review-row-select" type="checkbox" ${isSelected ? "checked" : ""} aria-label="Vybrat radek">
+          </td>
           <td>#${item.inventory_row}</td>
           <td class="review-material">
             <strong>${escapeHtml(item.name || "—")}</strong>
@@ -1824,6 +1952,7 @@
           <td class="review-bind-cell">
             <div class="review-bind-current">${currentBind}</div>
             <select class="review-bind-select">${optionsHtml}</select>
+            <input class="review-bind-search" list="reviewSppDatalist" type="text" placeholder="Nebo hledejte SPP podle nazvu / DN / HT" style="margin-top:6px;width:100%;background:var(--surface-3);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;font-family:inherit;">
             <input class="review-bind-custom" type="number" min="1" placeholder="Nebo zadejte cislo SPP radku" style="margin-top:6px;width:100%;background:var(--surface-3);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;font-family:inherit;">
           </td>
           <td>${escapeHtml(item.spp_source || "—")}</td>
@@ -1871,26 +2000,97 @@
       summary.textContent = `Kontrola jde po radcich podobne jako v Excelu. Opravte vazby primo ve sloupci "AI: Privazka k SPP", ulozte pravidlo a pak kliknete na "Prepocitat kontrolu".`;
     }
     populateTrainingSppOptions();
+    updateReviewSelectionMeta();
     renderReviewTable(review);
+  }
+
+  function ruleDescription(rule) {
+    if (rule.rule_type === "alias") {
+      return `${rule.rule_value?.alias || rule.rule_key} -> ${rule.rule_value?.canonical || "?"}`;
+    }
+    if (rule.rule_type === "category") {
+      return `${rule.rule_value?.match || "name_contains"} "${rule.rule_value?.pattern || "?"}" => ${rule.rule_value?.set_category || "OTHER"}`;
+    }
+    if (rule.rule_type === "mapping" && rule.rule_value?.kind === "text_note") {
+      return rule.rule_value?.text || rule.rule_key;
+    }
+    return JSON.stringify(rule.rule_value || {});
   }
 
   function renderRuleList() {
     const box = document.getElementById("ruleListBox");
     if (!box) return;
-    if (!state.rules.length) {
+    const filter = (document.getElementById("ruleFilterInput")?.value || "").trim().toLowerCase();
+    const rows = state.rules.filter((rule) => {
+      if (!filter) return true;
+      const haystack = [
+        rule.rule_type,
+        rule.scope_type,
+        rule.scope_value,
+        rule.rule_key,
+        rule.reason || "",
+        ruleDescription(rule),
+      ].join(" ").toLowerCase();
+      return haystack.includes(filter);
+    });
+    if (!rows.length) {
       box.textContent = "Zatim nejsou ulozena zadna pravidla.";
       return;
     }
-    box.innerHTML = state.rules
+    box.innerHTML = rows
       .slice(0, 80)
       .map((rule) => {
-        const scope = `${rule.scope_type}:${rule.scope_value}`;
-        const desc = rule.rule_type === "alias"
-          ? `${rule.rule_value?.alias || rule.rule_key} -> ${rule.rule_value?.canonical || "?"}`
-          : `${rule.rule_value?.match || "name_contains"} "${rule.rule_value?.pattern || "?"}" => ${rule.rule_value?.set_category || "OTHER"}`;
-        return `<div>• [${escapeHtml(scope)}] <strong>${escapeHtml(rule.rule_type)}</strong> — ${escapeHtml(desc)}</div>`;
+        const desc = ruleDescription(rule);
+        return `
+          <div class="rule-item" data-rule-id="${rule.id}">
+            <div class="rule-item-head">
+              <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                <span class="rule-chip">${escapeHtml(rule.rule_type)}</span>
+                <span class="rule-chip">${escapeHtml(rule.scope_type)}:${escapeHtml(rule.scope_value)}</span>
+              </div>
+              <div class="rule-item-actions">
+                <button class="btn btn-secondary" type="button" data-rule-action="reuse">Pouzit znovu</button>
+                <button class="btn btn-secondary" type="button" data-rule-action="delete">Smazat</button>
+              </div>
+            </div>
+            <div class="rule-text"><strong>${escapeHtml(rule.rule_key)}</strong> — ${escapeHtml(desc)}</div>
+            <div class="rule-text">${escapeHtml(rule.reason || "Bez poznamky")}</div>
+          </div>
+        `;
       })
       .join("");
+  }
+
+  function resetReviewState(resetStatus = true) {
+    state.draftId = null;
+    state.review = null;
+    state.selectedReviewRows = new Set();
+    const trainingSearch = document.getElementById("trainingSppSearch");
+    if (trainingSearch) trainingSearch.value = "";
+    populateTrainingSppOptions();
+    renderReview(null);
+    updateReviewSelectionMeta();
+    const resultBox = document.getElementById("trainingFilesResult");
+    if (resultBox) {
+      resultBox.textContent = "Soubory pro trenink zatim nejsou nahrane.";
+    }
+    if (resetStatus) {
+      setTrainingStatus("Pripraveno: po nove analyze se nactou aktualni radky i aktualni SPP moznosti.");
+    }
+  }
+
+  function getSelectedReviewRows() {
+    const rows = state.review?.review_rows || [];
+    return rows.filter((row) => state.selectedReviewRows.has(row.item_key));
+  }
+
+  function resolveSppRow(selectEl, customRowInput, searchInput) {
+    const directSelect = Number(selectEl?.value || 0);
+    if (directSelect > 0) return directSelect;
+    const fromSearch = Number(state.sppLookup.get(searchInput?.value || "") || parseSppLookupRow(searchInput?.value || ""));
+    if (fromSearch > 0) return fromSearch;
+    const customRow = Number(customRowInput?.value || 0);
+    return customRow > 0 ? customRow : 0;
   }
 
   async function loadRules() {
@@ -1903,8 +2103,12 @@
     }
   }
 
-  async function applyBulkUnmatchedRules() {
-    const sppRow = Number(document.getElementById("trainingSppRow")?.value || 0);
+  async function applyBulkRules(mode = "unmatched") {
+    const sppRow = resolveSppRow(
+      document.getElementById("trainingSppRow"),
+      null,
+      document.getElementById("trainingSppSearch")
+    );
     const scope = document.getElementById("trainingScope")?.value || "project";
     const reason = document.getElementById("trainingReason")?.value || "";
     if (!state.review?.review_rows?.length) {
@@ -1915,8 +2119,10 @@
       setTrainingStatus("Vyberte SPP radek pro hromadne prirazeni.", "warn");
       return;
     }
-    const targets = state.review.review_rows
-      .filter((row) => row.is_unmatched)
+    const sourceRows = mode === "selected"
+      ? getSelectedReviewRows()
+      : state.review.review_rows.filter((row) => row.is_unmatched);
+    const targets = sourceRows
       .map((row) => ({
         item_key: row.item_key,
         inventory_row: row.inventory_row,
@@ -1925,7 +2131,12 @@
         reason,
       }));
     if (!targets.length) {
-      setTrainingStatus("Aktualne nejsou zadne radky 'Bez shody'.", "warn");
+      setTrainingStatus(
+        mode === "selected"
+          ? "Nejprve vyberte aspon jeden radek v kontrolni tabulce."
+          : "Aktualne nejsou zadne radky 'Bez shody'.",
+        "warn"
+      );
       return;
     }
     setTrainingStatus(`Ukladam hromadne pravidla pro ${targets.length} radku…`);
@@ -1944,6 +2155,11 @@
         setTrainingStatus(`Ulozeno ${data.saved_count || 0}, chybne ${failed}.`, "warn");
       } else {
         setTrainingStatus(`Ulozeno ${data.saved_count || 0} pravidel. Kliknete na "Prepocitat kontrolu".`, "ok");
+        if (mode === "selected") {
+          state.selectedReviewRows = new Set();
+          updateReviewSelectionMeta();
+          renderReviewTable(state.review);
+        }
       }
     } catch (e) {
       setTrainingStatus(`Chyba bulk ulozeni: ${e.message}`, "err");
@@ -1977,6 +2193,46 @@
       await loadRules();
     } catch (e) {
       setTrainingStatus(`Chyba ulozeni aliasu: ${e.message}`, "err");
+    }
+  }
+
+  function slugifyRuleKey(value) {
+    const normalized = String(value || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return normalized || `text-rule-${Date.now()}`;
+  }
+
+  async function saveTextRule() {
+    const text = (document.getElementById("textRuleInput")?.value || "").trim();
+    const label = (document.getElementById("textRuleLabel")?.value || "").trim();
+    const scope = document.getElementById("textRuleScope")?.value || "project";
+    if (!text) {
+      setTrainingStatus("Vyplnte text pravidla nebo poznamky.", "warn");
+      return;
+    }
+    try {
+      await fetchJson("/api/rules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          project_code: state.project,
+          rule_type: "mapping",
+          scope,
+          rule_key: `text-note:${slugifyRuleKey(label || text.slice(0, 80))}`,
+          rule_value: { kind: "text_note", label, text },
+          reason: "manual training note",
+          priority: 90,
+          enabled: true,
+        }),
+      });
+      setTrainingStatus("Textove pravidlo ulozeno do registru.", "ok");
+      await loadRules();
+    } catch (e) {
+      setTrainingStatus(`Chyba ulozeni textoveho pravidla: ${e.message}`, "err");
     }
   }
 
@@ -2058,6 +2314,42 @@
     }
   }
 
+  function reuseRule(ruleId) {
+    const rule = state.rules.find((item) => Number(item.id) === Number(ruleId));
+    if (!rule) return;
+    if (rule.rule_type === "alias") {
+      document.getElementById("aliasFromInput").value = rule.rule_value?.alias || "";
+      document.getElementById("aliasToInput").value = rule.rule_value?.canonical || "";
+      document.getElementById("aliasScope").value = rule.scope_type || "project";
+      setTrainingStatus("Alias nacten z registru do formularu.", "ok");
+      return;
+    }
+    if (rule.rule_type === "category") {
+      document.getElementById("categoryMatchMode").value = rule.rule_value?.match || "name_contains";
+      document.getElementById("categoryPattern").value = rule.rule_value?.pattern || "";
+      document.getElementById("categoryScope").value = rule.scope_type || "project";
+      document.getElementById("categoryTarget").value = rule.rule_value?.set_category || "OTHER";
+      setTrainingStatus("Kategoricke pravidlo nacteno z registru do formularu.", "ok");
+      return;
+    }
+    if (rule.rule_type === "mapping" && rule.rule_value?.kind === "text_note") {
+      document.getElementById("textRuleInput").value = rule.rule_value?.text || "";
+      document.getElementById("textRuleLabel").value = rule.rule_value?.label || "";
+      document.getElementById("textRuleScope").value = rule.scope_type || "project";
+      setTrainingStatus("Textove pravidlo nacteno z registru do formularu.", "ok");
+    }
+  }
+
+  async function deleteRule(ruleId) {
+    try {
+      await fetchJson(`/api/rules/${encodeURIComponent(ruleId)}`, { method: "DELETE" });
+      setTrainingStatus("Pravidlo bylo odstraneno z registru.", "ok");
+      await loadRules();
+    } catch (e) {
+      setTrainingStatus(`Chyba mazani pravidla: ${e.message}`, "err");
+    }
+  }
+
   async function saveReviewOverride(button) {
     const item = button.closest("tr");
     if (!item) return;
@@ -2066,10 +2358,11 @@
     const article = item.dataset.article || "";
     const select = item.querySelector(".review-bind-select");
     const customRowInput = item.querySelector(".review-bind-custom");
+    const searchInput = item.querySelector(".review-bind-search");
     const scope = item.querySelector(".review-scope-select");
     const reason = item.querySelector(".review-reason-input");
     const statusEl = item.querySelector(".review-save-status");
-    const sppRow = Number(select?.value || customRowInput?.value || 0);
+    const sppRow = resolveSppRow(select, customRowInput, searchInput);
     if (!sppRow) {
       if (statusEl) {
         statusEl.textContent = "Vyberte radek SPP";
@@ -2338,6 +2631,7 @@
     if (nf45) form.append("nf45", nf45);
     if (rules) form.append("rules", rules);
 
+    resetReviewState(false);
     setRunStatus("Spoustim analyzu...");
     setBusy(true, "analysis");
     try {
@@ -2364,6 +2658,7 @@
     form.append("project_code", state.project);
     if (spp) form.append("spp", spp);
     if (inv) form.append("inventory", inv);
+    resetReviewState(false);
     setRunStatus("Detekuji mapovani...");
     setBusy(true, "mapping");
     try {
@@ -2393,6 +2688,19 @@
     const deleteBtn = event.target.closest(".review-delete-btn");
     if (deleteBtn) deleteReviewOverride(deleteBtn);
   });
+  document.getElementById("reviewTableBody")?.addEventListener("change", (event) => {
+    const checkbox = event.target.closest(".review-row-select");
+    if (!checkbox) return;
+    const row = checkbox.closest("tr");
+    const itemKey = row?.dataset?.itemKey;
+    if (!itemKey) return;
+    if (checkbox.checked) {
+      state.selectedReviewRows.add(itemKey);
+    } else {
+      state.selectedReviewRows.delete(itemKey);
+    }
+    updateReviewSelectionMeta();
+  });
   document.getElementById("tableWideBtn")?.addEventListener("click", () => {
     document.body.classList.toggle("table-focus");
     const btn = document.getElementById("tableWideBtn");
@@ -2413,14 +2721,41 @@
   });
   document.getElementById("projectSelectNav")?.addEventListener("change", async (e) => {
     state.project = e.target.value;
+    resetReviewState(false);
     await loadRules();
     await refreshDashboard();
   });
-  document.getElementById("trainingApplyUnmatchedBtn")?.addEventListener("click", applyBulkUnmatchedRules);
+  document.getElementById("trainingApplySelectedBtn")?.addEventListener("click", () => applyBulkRules("selected"));
+  document.getElementById("trainingApplyUnmatchedBtn")?.addEventListener("click", () => applyBulkRules("unmatched"));
   document.getElementById("saveAliasRuleBtn")?.addEventListener("click", saveAliasRule);
+  document.getElementById("saveTextRuleBtn")?.addEventListener("click", saveTextRule);
   document.getElementById("saveCategoryRuleBtn")?.addEventListener("click", saveCategoryRule);
   document.getElementById("trainingSnapshotBtn")?.addEventListener("click", snapshotRules);
   document.getElementById("previewTrainingFilesBtn")?.addEventListener("click", previewTrainingFiles);
+  document.getElementById("ruleFilterInput")?.addEventListener("input", renderRuleList);
+  document.getElementById("reviewSelectUnmatchedBtn")?.addEventListener("click", () => {
+    const unmatchedRows = (state.review?.review_rows || []).filter((row) => row.is_unmatched);
+    state.selectedReviewRows = new Set(unmatchedRows.map((row) => row.item_key));
+    updateReviewSelectionMeta();
+    if (state.review) renderReviewTable(state.review);
+  });
+  document.getElementById("reviewClearSelectionBtn")?.addEventListener("click", () => {
+    state.selectedReviewRows = new Set();
+    updateReviewSelectionMeta();
+    if (state.review) renderReviewTable(state.review);
+  });
+  document.getElementById("ruleListBox")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-rule-action]");
+    if (!button) return;
+    const item = button.closest("[data-rule-id]");
+    const ruleId = item?.dataset?.ruleId;
+    if (!ruleId) return;
+    if (button.dataset.ruleAction === "reuse") reuseRule(ruleId);
+    if (button.dataset.ruleAction === "delete") deleteRule(ruleId);
+  });
+  ["fileSpp", "fileInventory", "fileNf45", "fileRules", "periodMonth"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("change", () => resetReviewState(false));
+  });
 
   (async function init() {
     await loadProjects();

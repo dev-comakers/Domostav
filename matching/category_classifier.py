@@ -9,9 +9,17 @@ from models import MaterialCategory
 
 # Category keyword rules (Czech/Slovak terms)
 CATEGORY_RULES: list[tuple[MaterialCategory, list[str]]] = [
+    (MaterialCategory.INSULATION, [
+        "izolace", "izolac", "tubolit", "mirelon",
+        "tepelná izolace", "tepelna izolace",
+        "obalení", "obaleni", "izotub", "kaučuk", "kaucuk", "armaflex",
+        "trubková izolace", "trubkova izolace", "izolační", "izolacni",
+    ]),
     (MaterialCategory.PIPE, [
-        "trubka", "trub", "potrubí", "trubk", "rúrka", "rúr",
-        "roura", "rour", "pipe",
+        "trubka", "trub", "potrubí", "potrubi", "trubk", "rúrka", "rúr",
+        "roura", "rour", "pipe", "vodovod", "studená voda", "studena voda",
+        "teplá voda", "tepla voda", "cirkulace", "kanaliz", "odpadní", "odpadni",
+        "kg potrub", "ht potrub", "master 3", "kgem", "htem",
     ]),
     (MaterialCategory.FITTING, [
         "tvarovka", "tvarov", "koleno", "kolen",
@@ -20,11 +28,6 @@ CATEGORY_RULES: list[tuple[MaterialCategory, list[str]]] = [
         "přechod", "prechod", "nátrubek", "natrubek",
         "zaslepka", "zátka", "zatka", "záslepka",
         "vsuvka", "objímka", "objimka",
-    ]),
-    (MaterialCategory.INSULATION, [
-        "izolace", "izolac", "tubolit", "mirelon",
-        "tepelná izolace", "tepelna izolace",
-        "obalení", "obaleni", "izol",
     ]),
     (MaterialCategory.CONSUMABLE, [
         "silikon", "silicon", "tmel", "tmely",
@@ -63,7 +66,8 @@ def classify_category(name: str) -> MaterialCategory:
         return MaterialCategory.OTHER
 
     lower = name.lower()
-    # Remove diacritics-insensitive check by just doing lowercase comparison
+    if any(k in lower for k in ["trubková izolace", "trubkova izolace", "tubolit", "mirelon", "izotub", "armaflex"]):
+        return MaterialCategory.INSULATION
     for category, keywords in CATEGORY_RULES:
         for kw in keywords:
             if kw in lower:
@@ -86,10 +90,16 @@ def extract_material_type(name: str) -> str | None:
 
     upper = name.upper()
     patterns = [
+        (r"\bPP-?RCT\b", "PPR"),
+        (r"\bPPRCT\b", "PPR"),
         (r"\bPPR\b", "PPR"),
         (r"\bPE\b", "PE"),
         (r"\bPE-?X\b", "PEX"),
         (r"\bPVC\b", "PVC"),
+        (r"\bHTEM\b", "HT"),
+        (r"\bHT\b", "HT"),
+        (r"\bKGEM\b", "KG"),
+        (r"\bKG\b", "KG"),
         (r"\bCu\b", "Cu"),
         (r"\bOCEL\b", "OCEL"),
         (r"\bNEREZ\b", "NEREZ"),

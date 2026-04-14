@@ -9,6 +9,8 @@ import re
 DIAMETER_PATTERNS = [
     # "d20", "D20", "d 20"
     re.compile(r"\bd\s*(\d{2,3})\b", re.IGNORECASE),
+    # "D50x5,6", "D 50x5.6"
+    re.compile(r"\bD\s*(\d{2,3})\s*[xX×]", re.IGNORECASE),
     # "DN20", "DN 20", "Dn20"
     re.compile(r"\bDN\s*(\d{2,3})\b", re.IGNORECASE),
     # "20x2.3", "20x3,2", "25x2.3" (pipe dimensions: diameter x wall thickness)
