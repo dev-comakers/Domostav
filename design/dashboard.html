@@ -1105,6 +1105,71 @@
     overflow: auto;
   }
 
+  .training-spp-picker {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-3);
+  }
+
+  .training-spp-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .training-spp-list {
+    max-height: 220px;
+    overflow: auto;
+    display: grid;
+    gap: 6px;
+    padding-right: 4px;
+  }
+
+  .training-spp-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.02);
+    color: var(--text);
+  }
+
+  .training-spp-item input[type="checkbox"] {
+    margin-top: 2px;
+    accent-color: var(--blue);
+  }
+
+  .training-spp-item strong {
+    display: block;
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.35;
+  }
+
+  .training-spp-item span {
+    display: block;
+    margin-top: 2px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .training-spp-empty {
+    padding: 14px 10px;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+
   .review-toolbar-meta {
     display: flex;
     align-items: center;
@@ -1442,8 +1507,6 @@
             <button class="btn btn-secondary" id="trainingSnapshotBtn" type="button">Ulozit verzi pravidel</button>
           </div>
           <div class="training-grid">
-            <input class="training-input" id="trainingSppSearch" list="trainingSppDatalist" placeholder="Hledat SPP podle nazvu, HT, DN40...">
-            <select class="training-input" id="trainingSppRow"></select>
             <select class="training-input" id="trainingScope">
               <option value="project">Ulozit pro projekt</option>
               <option value="system">Ulozit pro system</option>
@@ -1452,6 +1515,17 @@
             <input class="training-input" id="trainingReason" placeholder="Poznamka k pravidlu">
             <button class="btn btn-primary" id="trainingApplySelectedBtn" type="button">Pouzit na vybrane radky</button>
             <button class="btn btn-secondary" id="trainingApplyUnmatchedBtn" type="button">Pouzit na vsechny "Bez shody"</button>
+          </div>
+          <div class="training-spp-picker">
+            <input class="training-input" id="trainingSppSearch" placeholder="Hledat SPP podle nazvu, HT, DN40...">
+            <div class="training-spp-meta">
+              <span id="trainingSppSelectionMeta">Vybrano 0 SPP radku pro pravidlo.</span>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-secondary" id="trainingSelectAllFilteredBtn" type="button">Oznacit vse z filtru</button>
+                <button class="btn btn-secondary" id="trainingClearSppSelectionBtn" type="button">Zrusit SPP vyber</button>
+              </div>
+            </div>
+            <div class="training-spp-list" id="trainingSppListBox"></div>
           </div>
           <div class="training-grid">
             <input class="training-input" id="trainingFilesInput" type="file" multiple accept=".xlsx,.xlsm,.xls,.csv">
@@ -1500,13 +1574,12 @@
             </select>
             <button class="btn btn-secondary" id="saveCategoryRuleBtn" type="button">Ulozit kategorii</button>
           </div>
-          <div class="training-status" id="trainingStatus">Pripraveno: vyberte SPP radek a muzete ucit pravidla hromadne.</div>
+          <div class="training-status" id="trainingStatus">Pripraveno: vyberte jeden nebo vice SPP radku a muzete ucit pravidla hromadne.</div>
           <div class="training-grid">
             <input class="training-input" id="ruleFilterInput" placeholder="Filtrovat registr pravidel podle textu, typu nebo scope">
           </div>
           <div class="rule-list" id="ruleListBox">Pravidla se nacitaji…</div>
         </div>
-        <datalist id="trainingSppDatalist"></datalist>
         <datalist id="reviewSppDatalist"></datalist>
         <div class="review-table-wrap">
           <table class="review-table">
@@ -1627,6 +1700,7 @@
     reviewFilter: "all",
     rules: [],
     selectedReviewRows: new Set(),
+    selectedTrainingSppRows: new Set(),
     sppLookup: new Map(),
   };
 
@@ -1868,24 +1942,67 @@
       : "Vybrano 0 radku pro hromadnou akci.";
   }
 
+  function updateTrainingSppSelectionMeta() {
+    const el = document.getElementById("trainingSppSelectionMeta");
+    if (!el) return;
+    const count = state.selectedTrainingSppRows.size;
+    el.textContent = count
+      ? `Vybrano ${count} SPP radku pro pravidlo.`
+      : "Vybrano 0 SPP radku pro pravidlo.";
+  }
+
+  function getFilteredTrainingSppOptions() {
+    const options = state.review?.spp_options || [];
+    const query = (document.getElementById("trainingSppSearch")?.value || "").trim().toLowerCase();
+    if (!query) return options;
+    return options.filter((item) => {
+      const haystack = [
+        item.label,
+        item.name,
+        item.sheet,
+        item.source_row,
+        item.qty_month,
+        item.unit,
+      ].join(" ").toLowerCase();
+      return haystack.includes(query);
+    });
+  }
+
+  function renderTrainingSppList() {
+    const box = document.getElementById("trainingSppListBox");
+    if (!box) return;
+    const options = getFilteredTrainingSppOptions();
+    if (!options.length) {
+      box.innerHTML = `<div class="training-spp-empty">Pro aktualni filtr nebyly nalezeny zadne radky SPP.</div>`;
+      updateTrainingSppSelectionMeta();
+      return;
+    }
+    box.innerHTML = options.map((item) => {
+      const checked = state.selectedTrainingSppRows.has(item.row);
+      return `
+        <label class="training-spp-item">
+          <input type="checkbox" class="training-spp-checkbox" data-spp-row="${item.row}" ${checked ? "checked" : ""}>
+          <div>
+            <strong>${escapeHtml(item.label || item.name || `SPP ${item.row}`)}</strong>
+            <span>${escapeHtml(item.unit || "—")} | mesic: ${escapeHtml(item.qty_month ?? "—")}</span>
+          </div>
+        </label>
+      `;
+    }).join("");
+    updateTrainingSppSelectionMeta();
+  }
+
   function populateTrainingSppOptions() {
-    const select = document.getElementById("trainingSppRow");
-    const trainingList = document.getElementById("trainingSppDatalist");
     const reviewList = document.getElementById("reviewSppDatalist");
-    if (!select) return;
     const options = state.review?.spp_options || [];
     state.sppLookup = new Map();
-    select.innerHTML = [
-      `<option value="">Vyberte SPP radek pro hromadne pravidlo…</option>`,
-      ...options.map((item) => `<option value="${item.row}">${escapeHtml(item.label)}</option>`),
-    ].join("");
     const lookupOptions = options.map((item) => {
       const lookupValue = buildSppLookupValue(item);
       state.sppLookup.set(lookupValue, item.row);
       return `<option value="${escapeHtml(lookupValue)}"></option>`;
     }).join("");
-    if (trainingList) trainingList.innerHTML = lookupOptions;
     if (reviewList) reviewList.innerHTML = lookupOptions;
+    renderTrainingSppList();
   }
 
   function fmtReviewNumber(value) {
@@ -2065,23 +2182,31 @@
     state.draftId = null;
     state.review = null;
     state.selectedReviewRows = new Set();
+    state.selectedTrainingSppRows = new Set();
     const trainingSearch = document.getElementById("trainingSppSearch");
     if (trainingSearch) trainingSearch.value = "";
     populateTrainingSppOptions();
     renderReview(null);
     updateReviewSelectionMeta();
+    updateTrainingSppSelectionMeta();
     const resultBox = document.getElementById("trainingFilesResult");
     if (resultBox) {
       resultBox.textContent = "Soubory pro trenink zatim nejsou nahrane.";
     }
     if (resetStatus) {
-      setTrainingStatus("Pripraveno: po nove analyze se nactou aktualni radky i aktualni SPP moznosti.");
+      setTrainingStatus("Pripraveno: po nove analyze se nactou aktualni radky i aktualni seznam SPP pro multivyber.");
     }
   }
 
   function getSelectedReviewRows() {
     const rows = state.review?.review_rows || [];
     return rows.filter((row) => state.selectedReviewRows.has(row.item_key));
+  }
+
+  function getSelectedTrainingSppRows() {
+    return Array.from(state.selectedTrainingSppRows)
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value) && value > 0);
   }
 
   function resolveSppRow(selectEl, customRowInput, searchInput) {
@@ -2104,19 +2229,15 @@
   }
 
   async function applyBulkRules(mode = "unmatched") {
-    const sppRow = resolveSppRow(
-      document.getElementById("trainingSppRow"),
-      null,
-      document.getElementById("trainingSppSearch")
-    );
+    const sppRows = getSelectedTrainingSppRows();
     const scope = document.getElementById("trainingScope")?.value || "project";
     const reason = document.getElementById("trainingReason")?.value || "";
     if (!state.review?.review_rows?.length) {
       setTrainingStatus("Nejprve spustte analyzu a otevrete review.", "warn");
       return;
     }
-    if (!sppRow) {
-      setTrainingStatus("Vyberte SPP radek pro hromadne prirazeni.", "warn");
+    if (!sppRows.length) {
+      setTrainingStatus("Vyberte aspon jeden SPP radek v bloku uceni.", "warn");
       return;
     }
     const sourceRows = mode === "selected"
@@ -2127,7 +2248,7 @@
         item_key: row.item_key,
         inventory_row: row.inventory_row,
         article: row.article || "",
-        spp_row: sppRow,
+        spp_rows: sppRows,
         reason,
       }));
     if (!targets.length) {
@@ -2139,7 +2260,7 @@
       );
       return;
     }
-    setTrainingStatus(`Ukladam hromadne pravidla pro ${targets.length} radku…`);
+    setTrainingStatus(`Ukladam hromadne pravidla pro ${targets.length} radku a ${sppRows.length} SPP vazeb…`);
     try {
       const data = await fetchJson("/api/overrides/bulk", {
         method: "POST",
@@ -2701,6 +2822,18 @@
     }
     updateReviewSelectionMeta();
   });
+  document.getElementById("trainingSppListBox")?.addEventListener("change", (event) => {
+    const checkbox = event.target.closest(".training-spp-checkbox");
+    if (!checkbox) return;
+    const sppRow = Number(checkbox.dataset.sppRow || 0);
+    if (!sppRow) return;
+    if (checkbox.checked) {
+      state.selectedTrainingSppRows.add(sppRow);
+    } else {
+      state.selectedTrainingSppRows.delete(sppRow);
+    }
+    updateTrainingSppSelectionMeta();
+  });
   document.getElementById("tableWideBtn")?.addEventListener("click", () => {
     document.body.classList.toggle("table-focus");
     const btn = document.getElementById("tableWideBtn");
@@ -2732,6 +2865,15 @@
   document.getElementById("saveCategoryRuleBtn")?.addEventListener("click", saveCategoryRule);
   document.getElementById("trainingSnapshotBtn")?.addEventListener("click", snapshotRules);
   document.getElementById("previewTrainingFilesBtn")?.addEventListener("click", previewTrainingFiles);
+  document.getElementById("trainingSppSearch")?.addEventListener("input", renderTrainingSppList);
+  document.getElementById("trainingSelectAllFilteredBtn")?.addEventListener("click", () => {
+    getFilteredTrainingSppOptions().forEach((item) => state.selectedTrainingSppRows.add(item.row));
+    renderTrainingSppList();
+  });
+  document.getElementById("trainingClearSppSelectionBtn")?.addEventListener("click", () => {
+    state.selectedTrainingSppRows = new Set();
+    renderTrainingSppList();
+  });
   document.getElementById("ruleFilterInput")?.addEventListener("input", renderRuleList);
   document.getElementById("reviewSelectUnmatchedBtn")?.addEventListener("click", () => {
     const unmatchedRows = (state.review?.review_rows || []).filter((row) => row.is_unmatched);

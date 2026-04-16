@@ -454,14 +454,27 @@ def save_overrides_bulk():
             article = (row.get("article") or "").strip().upper()
             inventory_row = row.get("inventory_row")
             item_key = (row.get("item_key") or "").strip() or _override_item_key(article, inventory_row)
-            spp_row = int(row.get("spp_row") or 0)
+            raw_spp_rows = row.get("spp_rows")
+            if raw_spp_rows is None:
+                raw_single = row.get("spp_row")
+                raw_spp_rows = [raw_single] if raw_single not in (None, "", 0) else []
+            if not isinstance(raw_spp_rows, list):
+                raise ValueError("spp_rows must be an array")
+            normalized_rows: list[int] = []
+            for x in raw_spp_rows:
+                try:
+                    value = int(x)
+                except (TypeError, ValueError):
+                    continue
+                if value > 0:
+                    normalized_rows.append(value)
             reason = row.get("reason") or ""
-            if not item_key or spp_row <= 0:
-                raise ValueError("item_key/article and spp_row are required")
+            if not item_key or not normalized_rows:
+                raise ValueError("item_key/article and spp_rows are required")
             if scope in {"system", "both"}:
-                store.save_scoped_override("system", "global", item_key, [spp_row], reason)
+                store.save_scoped_override("system", "global", item_key, normalized_rows, reason)
             if scope in {"project", "both"}:
-                store.save_scoped_override("project", project, item_key, [spp_row], reason)
+                store.save_scoped_override("project", project, item_key, normalized_rows, reason)
             saved_count += 1
         except Exception as exc:
             failed.append({"index": idx, "error": str(exc)})

@@ -82,7 +82,7 @@ def calculate_expected_writeoff(
             expected_writeoff=None,
             actual_deviation=inv_item.deviation,
             spp_reference="",
-            reason=(match.match_reason or "No matching SPP work found"),
+            reason=_humanize_match_reason(match.match_reason, match.match_method, has_match=False),
             status=AnomalyStatus.RED_FLAG,
             match_method=match.match_method,
         )
@@ -93,23 +93,23 @@ def calculate_expected_writeoff(
 
     if inv_item.category == MaterialCategory.PIPE:
         expected = _calc_pipe_writeoff(inv_item, matched_spp, pipe_waste)
-        spp_refs = [f"[{s.sheet}] Row {s.source_row}: {s.name}" for s in matched_spp[:1]]
+        spp_refs = _format_spp_refs(matched_spp)
 
     elif inv_item.category == MaterialCategory.FITTING:
         expected = _calc_fitting_writeoff(inv_item, matched_spp, all_inventory, fitting_ratio)
-        spp_refs = [f"[{s.sheet}] Row {s.source_row}: {s.name}" for s in matched_spp[:1]]
+        spp_refs = _format_spp_refs(matched_spp)
 
     elif inv_item.category == MaterialCategory.INSULATION:
         expected = _calc_insulation_writeoff(inv_item, matched_spp, insulation_waste)
-        spp_refs = [f"[{s.sheet}] Row {s.source_row}: {s.name}" for s in matched_spp[:1]]
+        spp_refs = _format_spp_refs(matched_spp)
 
     elif inv_item.category == MaterialCategory.VALVE:
         expected = _calc_valve_writeoff(inv_item, matched_spp)
-        spp_refs = [f"[{s.sheet}] Row {s.source_row}: {s.name}" for s in matched_spp[:1]]
+        spp_refs = _format_spp_refs(matched_spp)
 
     else:
         expected = _calc_generic_writeoff(inv_item, matched_spp)
-        spp_refs = [f"[{s.sheet}] Row {s.source_row}: {s.name}" for s in matched_spp[:1]]
+        spp_refs = _format_spp_refs(matched_spp)
 
     # Determine status
     status = _determine_status(expected, inv_item.deviation, tol_ok, tol_warning)
@@ -120,6 +120,9 @@ def calculate_expected_writeoff(
         deviation_pct = abs(abs(inv_item.deviation) - expected) / expected * 100
 
     reason_text = _build_reason(inv_item, expected, matched_spp)
+    ai_reason_text = _humanize_match_reason(match.match_reason, match.match_method, has_match=True)
+    if match.match_method == MatchMethod.AI and ai_reason_text:
+        reason_text = f"{ai_reason_text} | {reason_text}" if reason_text else ai_reason_text
     if match.match_method == MatchMethod.MANUAL and (match.match_reason or "").strip():
         # Preserve user-entered manual note so it appears in review and final Excel.
         reason_text = match.match_reason.strip()
@@ -310,3 +313,48 @@ def _build_reason(
     if matched_spp:
         parts.append(f"Matched {len(matched_spp)} SPP item(s)")
     return " | ".join(parts)
+
+
+def _format_spp_refs(matched_spp: list[SPPItem], limit: int = 3) -> list[str]:
+    refs = [f"[{s.sheet}] Row {s.source_row}: {s.name}" for s in matched_spp[:limit]]
+    if len(matched_spp) > limit:
+        refs.append(f"+{len(matched_spp) - limit} dalsi radky SPP")
+    return refs
+
+
+def _humanize_match_reason(raw_reason: str, match_method: MatchMethod, *, has_match: bool) -> str:
+    text = (raw_reason or "").strip()
+    low = text.lower()
+
+    if match_method == MatchMethod.MANUAL and text:
+        return text
+
+    if "429" in low or "quota" in low or "exceeded your current quota" in low:
+        return (
+            "AI matching se nepodaril: byl vycerpan limit OpenAI API (429). "
+            "Zkontrolujte billing, plan a API klic."
+        )
+    if "no ai client configured" in low:
+        return "AI matching nebyl spusten: chybi nakonfigurovany AI klient nebo API klic."
+    if "ai did not return match for this row" in low:
+        return "Bez shody: AI pro tento radek nevratila zadny pouzitelny vysledek."
+    if "candidate score" in low or "below threshold" in low or "below hard floor" in low:
+        return "Bez shody: AI si nebyla dost jista navrzenou vazbou."
+    if "diameter mismatch" in low:
+        return "Bez shody: nesouhlasi prumer materialu a SPP prace."
+    if "material type mismatch" in low:
+        return "Bez shody: nesouhlasi typ materialu."
+    if "category mismatch" in low:
+        return "Bez shody: nesouhlasi kategorie materialu a typu prace."
+    if low.startswith("bez shody:"):
+        return text
+    if low.startswith("ai matching failed:"):
+        detail = text.split(":", 1)[1].strip() if ":" in text else text
+        return f"AI matching se nepodaril: {detail}"
+    if has_match and match_method == MatchMethod.AI:
+        if text:
+            return f"AI vazba: {text}"
+        return "AI vazba byla prijata podle nazvu, prumeru a typu materialu."
+    if text:
+        return text
+    return "Bez shody: AI nenasla dostatecne jistou vazbu na SPP."
