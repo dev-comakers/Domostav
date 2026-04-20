@@ -421,6 +421,7 @@ def run_analysis_pipeline(
     # Build reverse coverage: SPP item → matched inventory items
     spp_coverage = _build_spp_coverage(spp_items, inventory_items, matches, recommendations)
     coverage_completed_at = time.perf_counter()
+    data_start = getattr(inv_mapping, "data_start_row", None) or config.get("inventory", {}).get("data_start_row", DEFAULT_INVENTORY_DATA_START)
 
     out: Path | None = None
     if generate_excel:
@@ -428,7 +429,6 @@ def run_analysis_pipeline(
             OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             output_path = str(OUTPUT_DIR / f"analysis_{project}_{ts}.xlsx")
-        data_start = config.get("inventory", {}).get("data_start_row", DEFAULT_INVENTORY_DATA_START)
         # region agent log
         _debug_log(
             "H2",
@@ -527,7 +527,8 @@ def run_analysis_pipeline(
         result["export_artifacts"] = {
             "summary": summary,
             "spp_coverage": spp_coverage,
-            "data_start_row": config.get("inventory", {}).get("data_start_row", DEFAULT_INVENTORY_DATA_START),
+            "data_start_row": data_start,
+            "sheet_name": getattr(inv_mapping, "sheet_name", None) if inv_mapping else None,
             "recommendations": [_model_to_dict(rec) for rec in recommendations],
         }
     return result
