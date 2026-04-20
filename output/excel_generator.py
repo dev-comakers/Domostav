@@ -112,6 +112,16 @@ def _human_method_label(method: MatchMethod) -> str:
     return "AI detection"
 
 
+def _human_status_label(status: AnomalyStatus) -> str:
+    if status == AnomalyStatus.OK:
+        return "V poradku"
+    if status == AnomalyStatus.WARNING:
+        return "Varovani"
+    if status == AnomalyStatus.OUT_OF_SCOPE:
+        return "Mimo aktivni SPP mesic"
+    return "Kriticke"
+
+
 def _detect_unit_column(ws: openpyxl.worksheet.worksheet.Worksheet, header_row: int) -> int | None:
     unit_keywords = ("jed", "unit", "ед", "mj", "měr")
     for col in range(1, ws.max_column + 1):
@@ -253,7 +263,7 @@ def generate_output(
         col += 1
 
         # AI: Статус
-        status_cell = ws.cell(row=row, column=col, value=rec.status.value)
+        status_cell = ws.cell(row=row, column=col, value=_human_status_label(rec.status))
         status_cell.font = FONT_NORMAL
         status_cell.border = THIN_BORDER
         status_cell.alignment = Alignment(horizontal="center")
@@ -386,7 +396,7 @@ def _add_summary_sheet(
             ws.cell(row=idx, column=4, value=rec.expected_writeoff)
             ws.cell(row=idx, column=5, value=rec.actual_deviation)
             ws.cell(row=idx, column=6, value=_money_impact_from_rec(rec))
-            ws.cell(row=idx, column=7, value=rec.status.value)
+            ws.cell(row=idx, column=7, value=_human_status_label(rec.status))
             ws.cell(row=idx, column=8, value=_human_reason_fallback(rec))
     else:
         top_anomalies = sorted(
@@ -401,7 +411,12 @@ def _add_summary_sheet(
             ws.cell(row=idx, column=4, value=item.get("expected_writeoff"))
             ws.cell(row=idx, column=5, value=item.get("actual_deviation"))
             ws.cell(row=idx, column=6, value=item.get("money_impact"))
-            ws.cell(row=idx, column=7, value=item.get("status"))
+            raw_status = str(item.get("status") or "RED_FLAG")
+            try:
+                human_status = _human_status_label(AnomalyStatus(raw_status))
+            except ValueError:
+                human_status = raw_status
+            ws.cell(row=idx, column=7, value=human_status)
             ws.cell(row=idx, column=8, value=item.get("one_line_explanation") or str(item.get("reason", ""))[:200])
 
     ws.column_dimensions["A"].width = 48
@@ -422,14 +437,14 @@ def _add_summary_sheet(
 
 
 def _extract_spp_source(spp_reference: str) -> str:
-    """Turn '[ZTI] Row 6: ...' into compact 'ZTI #6'."""
+    """Turn '[ZTI] Row 6: ...' into compact human label."""
     import re
     if not spp_reference:
         return ""
     parts = re.findall(r"\[([^\]]+)\]\s*Row\s*(\d+)", spp_reference)
     if not parts:
         return spp_reference[:40]
-    return ", ".join(f"{sheet} #{row}" for sheet, row in parts)
+    return ", ".join(f"SPP {sheet}, radek {row}" for sheet, row in parts)
 
 
 def _add_spp_coverage_sheet(

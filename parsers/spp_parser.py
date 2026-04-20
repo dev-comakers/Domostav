@@ -41,6 +41,7 @@ def parse_spp(
     sheets: list[dict] | None = None,
     mapping: ColumnMapping | None = None,
     prefer_adaptive: bool = False,
+    period_month_hint: str | None = None,
 ) -> list[SPPItem]:
     """Parse an SPP Excel file into structured SPPItem objects.
 
@@ -53,6 +54,7 @@ def parse_spp(
     Returns:
         List of SPPItem objects from all specified sheets.
     """
+    default_mapping_used = mapping is None
     if mapping is None:
         mapping = ColumnMapping(
             name="I",
@@ -72,7 +74,7 @@ def parse_spp(
 
     wb = openpyxl.load_workbook(str(filepath), data_only=True, read_only=True)
     all_items: list[SPPItem] = []
-    month_hint = _extract_month_hint(str(filepath))
+    month_hint = _extract_month_hint(str(filepath), period_month_hint)
 
     for sheet_idx, sheet_cfg in enumerate(sheets):
         sheet_name = sheet_cfg["name"]
@@ -85,7 +87,11 @@ def parse_spp(
 
         ws = wb[sheet_name]
         adaptive = _detect_spp_mapping_from_headers(ws)
-        if adaptive and (prefer_adaptive or not _mapping_has_enough_rows(ws, mapping)):
+        if adaptive and (
+            prefer_adaptive
+            or default_mapping_used
+            or not _mapping_has_enough_rows(ws, mapping)
+        ):
             active_mapping = adaptive
         else:
             active_mapping = mapping
@@ -163,7 +169,13 @@ def parse_spp(
     wb.close()
     # If explicit project-config sheets did not work, retry once with adaptive auto detection.
     if not all_items and not auto_selected_sheets:
-        return parse_spp(filepath=filepath, sheets=None, mapping=mapping, prefer_adaptive=True)
+        return parse_spp(
+            filepath=filepath,
+            sheets=None,
+            mapping=mapping,
+            prefer_adaptive=True,
+            period_month_hint=period_month_hint,
+        )
     return all_items
 
 
@@ -264,7 +276,10 @@ def get_spp_preview(
     return rows
 
 
-def _extract_month_hint(path_value: str) -> str:
+def _extract_month_hint(path_value: str, period_month_hint: str | None = None) -> str:
+    normalized_period = str(period_month_hint or "").strip()
+    if normalized_period:
+        return normalized_period
     low = path_value.lower()
     month_aliases = {
         "leden": "leden",

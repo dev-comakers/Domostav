@@ -225,6 +225,7 @@ def run_analysis_pipeline(
     spp_path: str | Path,
     inventory_path: str | Path,
     output_path: str | None = None,
+    period_month: str | None = None,
     api_key: str | None = None,
     no_ai: bool = False,
     force_ai_matching: bool = True,
@@ -286,7 +287,12 @@ def run_analysis_pipeline(
         inv_mapping = auto_detect_mapping(inventory_path, client, "inventory")
 
     spp_sheets = config.get("spp", {}).get("sheets")
-    spp_items_all = parse_spp(spp_path, sheets=spp_sheets, mapping=spp_mapping)
+    spp_items_all = parse_spp(
+        spp_path,
+        sheets=spp_sheets,
+        mapping=spp_mapping,
+        period_month_hint=period_month,
+    )
     spp_items = filter_spp_by_month(spp_items_all)
     inventory_items = parse_inventory(inventory_path, mapping=inv_mapping)
 
