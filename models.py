@@ -29,6 +29,7 @@ class AnomalyStatus(str, Enum):
     OK = "OK"                 # <15% deviation
     WARNING = "WARNING"       # 15-30% deviation
     RED_FLAG = "RED_FLAG"     # >30% or unmatched
+    OUT_OF_SCOPE = "OUT_OF_SCOPE"  # not relevant to active SPP month
 
 
 class ColumnMapping(BaseModel):

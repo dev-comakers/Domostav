@@ -39,6 +39,7 @@ FILL_OK = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid
 FILL_WARNING = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
 FILL_RED = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
 FILL_REVIEW = PatternFill(start_color="FDE9D9", end_color="FDE9D9", fill_type="solid")
+FILL_NEUTRAL = PatternFill(start_color="D9E2F3", end_color="D9E2F3", fill_type="solid")
 FILL_HEADER = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
 
 FONT_HEADER = Font(bold=True, color="FFFFFF", size=10)
@@ -126,6 +127,20 @@ def _detect_unit_column(ws: openpyxl.worksheet.worksheet.Worksheet, header_row: 
     return None
 
 
+def _last_used_header_column(
+    ws: openpyxl.worksheet.worksheet.Worksheet,
+    header_row: int,
+) -> int:
+    last = 0
+    for col in range(1, ws.max_column + 1):
+        value = ws.cell(row=header_row, column=col).value
+        if value is None:
+            continue
+        if str(value).strip():
+            last = col
+    return last or ws.max_column
+
+
 def generate_output(
     source_path: str | Path,
     output_path: str | Path,
@@ -177,8 +192,8 @@ def generate_output(
     )
     # endregion
 
-    ai_start_col = ws.max_column + 2
     header_row = data_start_row - 1
+    ai_start_col = _last_used_header_column(ws, header_row) + 1
     unit_col = _detect_unit_column(ws, header_row)
 
     for i, (col_name, width) in enumerate(AI_COLUMNS):
@@ -246,6 +261,8 @@ def generate_output(
             status_cell.fill = FILL_OK
         elif rec.status == AnomalyStatus.WARNING:
             status_cell.fill = FILL_WARNING
+        elif rec.status == AnomalyStatus.OUT_OF_SCOPE:
+            status_cell.fill = FILL_NEUTRAL
         else:
             status_cell.fill = FILL_RED
         col += 1
@@ -302,6 +319,7 @@ def _add_summary_sheet(
     warning = int(summary.get("warning", sum(1 for r in recommendations if r.status == AnomalyStatus.WARNING)))
     red = int(summary.get("red_flag", sum(1 for r in recommendations if r.status == AnomalyStatus.RED_FLAG)))
     review = int(summary.get("review", sum(1 for r in recommendations if r.expected_writeoff is None)))
+    out_of_scope = int(summary.get("excluded", {}).get("out_of_scope_count", sum(1 for r in recommendations if r.status == AnomalyStatus.OUT_OF_SCOPE)))
     money_totals = summary.get("money_totals", {})
     top_anomalies = summary.get("top_anomalies", [])
 
@@ -325,20 +343,23 @@ def _add_summary_sheet(
     ws.cell(row=8, column=1, value="RED FLAG (критично):")
     ws.cell(row=8, column=2, value=red)
     ws.cell(row=8, column=3).fill = FILL_RED
+    ws.cell(row=9, column=1, value="MIMO AKTIVNI SPP MESIC:")
+    ws.cell(row=9, column=2, value=out_of_scope)
+    ws.cell(row=9, column=3).fill = FILL_NEUTRAL
 
     # Block 3: money
-    ws.cell(row=10, column=1, value="3) Денежный итог (если есть цена)").font = Font(bold=True, size=11)
-    ws.cell(row=10, column=4, value="Формула: количество * цена по каждой позиции").font = Font(italic=True, size=9)
-    ws.cell(row=11, column=1, value="Ожидаемая сумма списания:")
-    ws.cell(row=11, column=2, value=float(money_totals.get("expected_cost", 0.0)))
-    ws.cell(row=12, column=1, value="Фактическая сумма (по отклонению):")
-    ws.cell(row=12, column=2, value=float(money_totals.get("actual_cost", 0.0)))
-    ws.cell(row=13, column=1, value="Разница факт - ожидание:")
-    ws.cell(row=13, column=2, value=float(money_totals.get("delta_cost", 0.0)))
-    ws.cell(row=14, column=1, value="Ед. измерения денег: в валюте цен из файла (обычно CZK).").font = Font(italic=True, size=9)
+    ws.cell(row=11, column=1, value="3) Денежный итог (если есть цена)").font = Font(bold=True, size=11)
+    ws.cell(row=11, column=4, value="Формула: количество * цена по каждой позиции").font = Font(italic=True, size=9)
+    ws.cell(row=12, column=1, value="Ожидаемая сумма списания:")
+    ws.cell(row=12, column=2, value=float(money_totals.get("expected_cost", 0.0)))
+    ws.cell(row=13, column=1, value="Фактическая сумма (по отклонению):")
+    ws.cell(row=13, column=2, value=float(money_totals.get("actual_cost", 0.0)))
+    ws.cell(row=14, column=1, value="Разница факт - ожидание:")
+    ws.cell(row=14, column=2, value=float(money_totals.get("delta_cost", 0.0)))
+    ws.cell(row=15, column=1, value="Ед. измерения денег: в валюте цен из файла (обычно CZK).").font = Font(italic=True, size=9)
 
     # Block 5: top anomalies one-line explanation
-    top_row = 17
+    top_row = 18
     ws.cell(row=top_row, column=1, value="5) Топ аномалий (1 строка для заказчика)").font = Font(bold=True, size=11)
     headers = ["Строка", "Материал", "Ед.", "Ожидалось", "Факт", "Влияние, CZK", "Статус", "Пояснение (1 строка)"]
     for i, h in enumerate(headers, 1):
@@ -539,6 +560,8 @@ def _add_spp_coverage_sheet(
 
 
 def _human_reason_fallback(rec: WriteoffRecommendation) -> str:
+    if rec.status == AnomalyStatus.OUT_OF_SCOPE:
+        return "Material je mimo aktivni SPP tohoto mesice."
     expected = f"{rec.expected_writeoff:.1f}" if rec.expected_writeoff is not None else "нет оценки"
     actual = f"{rec.actual_deviation:.1f}" if rec.actual_deviation is not None else "нет факта"
     pct = f"{rec.deviation_percent:.1f}%" if rec.deviation_percent is not None else "нет %"

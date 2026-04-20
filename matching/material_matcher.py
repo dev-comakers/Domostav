@@ -379,6 +379,10 @@ def match_by_ai(
 
     def process_batch(batch_start: int, batch: list[InventoryItem]) -> tuple[int, list[InventoryItem], list[dict[str, Any]] | None, Exception | None, float, int, int]:
         batch_started_at = time.perf_counter()
+        shortlist_by_row = {
+            item.row: _build_shortlist(item, spp)
+            for item in batch
+        }
         batch_data = [
             {
                 "row": item.row,
@@ -389,7 +393,7 @@ def match_by_ai(
                 "unit": item.unit,
                 "deviation": item.deviation,
                 "material_type": item.material_type,
-                "candidate_spp_rows": _build_shortlist(item, spp),
+                "candidate_spp_rows": shortlist_by_row.get(item.row, []),
             }
             for item in batch
         ]
@@ -409,7 +413,10 @@ def match_by_ai(
             return (
                 batch_start,
                 batch,
-                ai_results,
+                {
+                    "results": ai_results,
+                    "shortlists": shortlist_by_row,
+                },
                 None,
                 round((time.perf_counter() - batch_started_at) * 1000, 1),
                 batch_client.total_input_tokens,
@@ -444,6 +451,9 @@ def match_by_ai(
             client.total_output_tokens += output_tokens
 
             if error is None:
+                payload = ai_results or {}
+                parsed_results = payload.get("results") if isinstance(payload, dict) else ai_results
+                shortlist_by_row = payload.get("shortlists") if isinstance(payload, dict) else {}
                 # region agent log
                 _debug_log(
                     "H1",
@@ -452,19 +462,19 @@ def match_by_ai(
                     {
                         "batch_start": batch_start,
                         "batch_size": len(batch),
-                        "returned_items": len(ai_results or []),
+                        "returned_items": len(parsed_results or []),
                         "returned_with_spp": sum(
-                            1 for r in (ai_results or []) if isinstance(r, dict) and (r.get("matched_spp_rows") or [])
+                            1 for r in (parsed_results or []) if isinstance(r, dict) and (r.get("matched_spp_rows") or [])
                         ),
                         "returned_empty_spp": sum(
-                            1 for r in (ai_results or []) if isinstance(r, dict) and not (r.get("matched_spp_rows") or [])
+                            1 for r in (parsed_results or []) if isinstance(r, dict) and not (r.get("matched_spp_rows") or [])
                         ),
                         "elapsed_ms": elapsed_ms,
                     },
                 )
                 # endregion
 
-                for r in ai_results or []:
+                for r in parsed_results or []:
                     row = r.get("inventory_row")
                     if row is None:
                         continue
@@ -493,7 +503,13 @@ def match_by_ai(
                                 normalized_rows = []
                                 normalized_reason = f"Bez shody: {guard_reason}"
                     elif not normalized_rows:
-                        normalized_reason = normalized_reason or "Bez shody"
+                        shortlist = shortlist_by_row.get(row) or []
+                        if not shortlist:
+                            normalized_reason = (
+                                "Bez shody: v aktivnim SPP tohoto mesice nebyl nalezen zadny relevantni kandidat"
+                            )
+                        else:
+                            normalized_reason = normalized_reason or "Bez shody"
                     results[row] = MatchResult(
                         inventory_row=row,
                         matched_spp_rows=normalized_rows,

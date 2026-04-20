@@ -19,7 +19,7 @@ from analysis.nf45_validator import validate_against_nf45
 from config.settings import CONFIG_DIR, DEFAULT_INVENTORY_DATA_START, OUTPUT_DIR
 from llm.client import ClaudeClient
 from matching.material_matcher import match_all
-from models import ColumnMapping, MatchMethod, MatchResult, MaterialCategory
+from models import AnomalyStatus, ColumnMapping, MatchMethod, MatchResult, MaterialCategory
 from output.excel_generator import generate_output
 from parsers.inventory_parser import parse_inventory
 from parsers.mapping_engine import auto_detect_mapping
@@ -354,7 +354,14 @@ def run_analysis_pipeline(
         rules=config.get("rules", {}),
     )
     summary = get_summary(recommendations, inventory_items)
-    kpi_rows = {inv.row for inv in inventory_items if inv.category != MaterialCategory.CONSUMABLE}
+    rec_by_row = {rec.inventory_row: rec for rec in recommendations}
+    kpi_rows = {
+        inv.row
+        for inv in inventory_items
+        if inv.category != MaterialCategory.CONSUMABLE
+        and rec_by_row.get(inv.row)
+        and rec_by_row[inv.row].status != AnomalyStatus.OUT_OF_SCOPE
+    }
     method_counts = Counter(
         m.match_method.value
         for row, m in matches.items()
@@ -372,7 +379,9 @@ def run_analysis_pipeline(
         if row in kpi_rows and m.match_method == MatchMethod.MANUAL and m.matched_spp_rows
     )
     unmatched_rows = sum(
-        1 for row, m in matches.items() if row in kpi_rows and not m.matched_spp_rows
+        1
+        for rec in recommendations
+        if rec.inventory_row in kpi_rows and rec.expected_writeoff is None
     )
     analysis_completed_at = time.perf_counter()
 
@@ -474,6 +483,7 @@ def run_analysis_pipeline(
         },
         "excluded": {
             "consumables_count": summary.get("excluded", {}).get("consumables_count", 0),
+            "out_of_scope_count": summary.get("excluded", {}).get("out_of_scope_count", 0),
         },
         "validation": validation,
     }
@@ -614,13 +624,18 @@ def _build_review_payload(inventory_items: list, recommendations: list, spp_item
     inv_by_row = {i.row: i for i in inventory_items}
     review_rows: list[dict[str, Any]] = []
     unmatched_count = 0
+    out_of_scope_count = 0
 
     for rec in recommendations:
         inv = inv_by_row.get(rec.inventory_row)
         article = (inv.article or "").strip().upper() if inv and inv.article else ""
         item_key = f"ARTICLE:{article}" if article else f"ROW:{rec.inventory_row}"
+        is_out_of_scope = getattr(rec.status, "value", rec.status) == "OUT_OF_SCOPE"
         is_unmatched = rec.expected_writeoff is None
-        is_anomaly = getattr(rec.status, "value", rec.status) != "OK"
+        is_anomaly = getattr(rec.status, "value", rec.status) not in {"OK", "OUT_OF_SCOPE"}
+        if is_out_of_scope:
+            out_of_scope_count += 1
+            continue
         if is_unmatched:
             unmatched_count += 1
         if not (is_unmatched or is_anomaly):
@@ -645,6 +660,7 @@ def _build_review_payload(inventory_items: list, recommendations: list, spp_item
                 "category": (inv.category.value if inv else None),
                 "is_unmatched": is_unmatched,
                 "is_anomaly": is_anomaly,
+                "is_out_of_scope": False,
                 "money_impact": round(
                     abs(float(inv.deviation or 0.0)) * abs(float(inv.price or 0.0)),
                     2,
@@ -697,6 +713,7 @@ def _build_review_payload(inventory_items: list, recommendations: list, spp_item
             "unmatched": unmatched_count,
             "review_rows": len(review_rows),
             "top_anomalies": len(review_top_anomalies),
+            "out_of_scope": out_of_scope_count,
         },
     }
 

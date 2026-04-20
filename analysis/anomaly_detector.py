@@ -74,8 +74,13 @@ def get_summary(
     def _is_consumable(rec: WriteoffRecommendation) -> bool:
         inv = inv_by_row.get(rec.inventory_row)
         return bool(inv and inv.category == MaterialCategory.CONSUMABLE)
-    kpi_recommendations = [r for r in recommendations if not _is_consumable(r)]
-    excluded_consumables = len(recommendations) - len(kpi_recommendations)
+    def _is_out_of_scope(rec: WriteoffRecommendation) -> bool:
+        return rec.status == AnomalyStatus.OUT_OF_SCOPE
+
+    non_consumable = [r for r in recommendations if not _is_consumable(r)]
+    excluded_consumables = len(recommendations) - len(non_consumable)
+    excluded_out_of_scope = sum(1 for r in non_consumable if _is_out_of_scope(r))
+    kpi_recommendations = [r for r in non_consumable if not _is_out_of_scope(r)]
 
     total = len(kpi_recommendations)
     ok = sum(1 for r in kpi_recommendations if r.status == AnomalyStatus.OK)
@@ -203,5 +208,6 @@ def get_summary(
         ],
         "excluded": {
             "consumables_count": excluded_consumables,
+            "out_of_scope_count": excluded_out_of_scope,
         },
     }

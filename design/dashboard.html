@@ -533,6 +533,12 @@
     border: 1px solid var(--red-border);
   }
 
+  .badge-neutral {
+    background: rgba(96, 125, 173, 0.14);
+    color: #9fb4da;
+    border: 1px solid rgba(96, 125, 173, 0.35);
+  }
+
   .badge-dot {
     width: 6px;
     height: 6px;
@@ -542,6 +548,7 @@
   .badge-ok .badge-dot { background: var(--green); }
   .badge-warning .badge-dot { background: var(--yellow); }
   .badge-red .badge-dot { background: var(--red); }
+  .badge-neutral .badge-dot { background: #9fb4da; }
 
   /* Progress bar */
   .progress-section {
@@ -1273,6 +1280,28 @@
     color: var(--text-muted);
   }
 
+  .processing-meta {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .processing-progress {
+    margin-top: 14px;
+    width: 100%;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+  }
+
+  .processing-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent), #60A5FA);
+    transition: width 0.35s ease;
+  }
+
   @keyframes spin {
     to { transform: rotate(360deg); }
   }
@@ -1314,11 +1343,6 @@
       <input type="text" value="Kontrola odpisu podle SPP" disabled style="margin-top:8px;width:100%;background:var(--surface-2);color:var(--text-muted);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px">
     </div>
 
-    <div class="nav-label">System</div>
-    <a class="nav-item" href="#" id="nav-settings">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m-7-7h6m6 0h6m-3.5-5.5L15 10m-6 4l-3.5 3.5m0-11L9 10m6 4l3.5 3.5"/></svg>
-      Nastaveni
-    </a>
   </div>
 
   <div class="sidebar-footer">
@@ -1339,14 +1363,15 @@
       <div class="topbar-title">Prehled</div>
     </div>
     <div class="topbar-right">
-      <button class="btn btn-secondary" id="tableWideBtn" type="button">Cela sirka tabulky</button>
+      <button class="icon-btn" id="tableWideBtn" type="button" title="Rozsirit tabulku" aria-label="Rozsirit tabulku">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M8 3H3v5"/><path d="M16 3h5v5"/><path d="M21 16v5h-5"/><path d="M8 21H3v-5"/>
+          <path d="M3 8l6-6"/><path d="M15 3l6 6"/><path d="M21 16l-6 6"/><path d="M3 16l6 6"/>
+        </svg>
+      </button>
       <div class="search-bar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         <input type="text" placeholder="Hledat materialy, projekty...">
-      </div>
-      <div class="icon-btn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        <span class="dot"></span>
       </div>
       <button class="btn btn-primary">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
@@ -1448,10 +1473,7 @@
           <input type="file" id="fileRules" name="rules" accept=".xls,.xlsx,.xlsm">
           <input type="month" id="periodMonth" name="period_month" value="2026-02">
           <textarea id="projectPrompt" name="project_prompt" rows="2" placeholder="Projektovy pokyn (volitelne)" style="background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px"></textarea>
-          <button class="btn" id="detectMappingBtn" type="button" style="background:var(--surface-2);border:1px solid var(--border);color:var(--text)">Nacist doporucene mapovani</button>
-          <textarea id="sppMappingJson" rows="2" placeholder="SPP mapping JSON (potvrzeni/uprava)" style="background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px"></textarea>
-          <textarea id="invMappingJson" rows="2" placeholder="Inventura mapping JSON (potvrzeni/uprava)" style="background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px"></textarea>
-          <button class="btn btn-primary" id="runAnalyzeBtn" type="submit">Spustit analyzu</button>
+          <button class="btn btn-primary" id="runAnalyzeBtn" type="submit">Spustit analyzu a pripravit review</button>
         </form>
         <div id="runStatus" style="margin-top:8px;font-size:12px;color:var(--text-muted)"></div>
       </div>
@@ -1461,7 +1483,7 @@
       <div class="review-header">
         <div>
           <h2>Kontrola pred exportem</h2>
-          <p id="reviewSummaryText">Nejprve opravte radky bez shody a zkontrolujte anomaly, potom vygenerujte finalni soubor.</p>
+          <p id="reviewSummaryText">Nejprve opravte relevantni radky bez shody a zkontrolujte anomaly, potom vygenerujte finalni soubor.</p>
         </div>
         <div class="review-actions">
           <button class="btn btn-secondary" id="reviewRecalculateBtn" type="button">Prepocitat kontrolu</button>
@@ -1688,6 +1710,8 @@
     <div class="processing-spinner"></div>
     <div class="processing-title" id="processingTitle">Počkejte prosím</div>
     <div class="processing-text" id="processingText">Probíhá zpracování...</div>
+    <div class="processing-meta" id="processingMeta">Pripravuji odhad zbyvajiciho casu...</div>
+    <div class="processing-progress"><div class="processing-progress-fill" id="processingProgressFill"></div></div>
   </div>
 </div>
 
@@ -1735,7 +1759,7 @@
       .replaceAll('"', "&quot;");
   }
 
-  const busyRuntime = { startedAt: 0, mode: "analysis", tickerId: null };
+  const busyRuntime = { startedAt: 0, mode: "analysis", tickerId: null, avgMs: 0, baseText: "" };
   const BUSY_MESSAGES = {
     mapping: [
       "Mapuji sloupce souboru...",
@@ -1803,10 +1827,10 @@
     const overlay = document.getElementById("processingOverlay");
     const titleEl = document.getElementById("processingTitle");
     const textEl = document.getElementById("processingText");
+    const metaEl = document.getElementById("processingMeta");
+    const progressEl = document.getElementById("processingProgressFill");
     const runBtn = document.getElementById("runAnalyzeBtn");
-    const mapBtn = document.getElementById("detectMappingBtn");
     if (runBtn) runBtn.disabled = isBusy;
-    if (mapBtn) mapBtn.disabled = isBusy;
     if (!overlay) return;
 
     if (isBusy) {
@@ -1815,20 +1839,38 @@
       const baseText = chooseBusyMessage(mode);
       busyRuntime.mode = mode;
       busyRuntime.startedAt = Date.now();
+      busyRuntime.avgMs = avgMs;
+      busyRuntime.baseText = baseText;
       if (busyRuntime.tickerId) {
         clearInterval(busyRuntime.tickerId);
         busyRuntime.tickerId = null;
       }
       if (titleEl && textEl) {
         titleEl.textContent = "Probiha zpracovani";
-        textEl.textContent = `${baseText} Odhad: ~${formatSecs(avgMs / 1000)}.`;
+        textEl.textContent = baseText;
+      }
+      if (metaEl) {
+        metaEl.textContent = `Predpokladany cas: ~${formatSecs(avgMs / 1000)}.`;
+      }
+      if (progressEl) {
+        progressEl.style.width = "0%";
       }
       busyRuntime.tickerId = window.setInterval(() => {
-        if (!textEl) return;
         const elapsedMs = Date.now() - busyRuntime.startedAt;
         const remainingSec = Math.max(0, (avgMs - elapsedMs) / 1000);
-        textEl.textContent = `${baseText} Ubehlo: ${formatSecs(elapsedMs / 1000)} | Odhad zbyva: ${formatSecs(remainingSec)}.`;
+        const pct = Math.max(2, Math.min(99, (elapsedMs / Math.max(avgMs, 1)) * 100));
+        if (textEl) {
+          textEl.textContent = `${baseText} Ubehlo: ${formatSecs(elapsedMs / 1000)}.`;
+        }
+        if (metaEl) {
+          metaEl.textContent = `Odhad zbyva: ${formatSecs(remainingSec)} | Celkem obvykle: ~${formatSecs(avgMs / 1000)}.`;
+        }
+        if (progressEl) {
+          progressEl.style.width = `${pct.toFixed(1)}%`;
+        }
+        setRunStatus(`${baseText} Zbyva priblizne ${formatSecs(remainingSec)}.`);
       }, 1000);
+      setRunStatus(`${baseText} Zbyva priblizne ${formatSecs(avgMs / 1000)}.`);
       overlay.classList.add("show");
     } else {
       if (busyRuntime.tickerId) {
@@ -1839,6 +1881,11 @@
         rememberDurationMs(busyRuntime.mode, Date.now() - busyRuntime.startedAt);
       }
       busyRuntime.startedAt = 0;
+      busyRuntime.avgMs = 0;
+      busyRuntime.baseText = "";
+      if (progressEl) {
+        progressEl.style.width = "0%";
+      }
       overlay.classList.remove("show");
     }
   }
@@ -1882,8 +1929,20 @@
       const pctText = pctRaw === null || pctRaw === undefined || Number.isNaN(Number(pctRaw)) ? "—" : `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
       const color = pctRaw === null || pctRaw === undefined ? "var(--text-dim)" : Math.abs(pct) >= 30 ? "var(--red)" : Math.abs(pct) >= 15 ? "var(--yellow)" : "var(--green)";
       const statusRaw = String(r.status || "RED_FLAG");
-      const statusClass = statusRaw === "OK" ? "badge-ok" : statusRaw === "WARNING" ? "badge-warning" : "badge-red";
-      const statusLabel = statusRaw === "OK" ? "V PORADKU" : statusRaw === "WARNING" ? "VAROVANI" : "KRITICKE";
+      const statusClass = statusRaw === "OK"
+        ? "badge-ok"
+        : statusRaw === "WARNING"
+          ? "badge-warning"
+          : statusRaw === "OUT_OF_SCOPE"
+            ? "badge-neutral"
+            : "badge-red";
+      const statusLabel = statusRaw === "OK"
+        ? "V PORADKU"
+        : statusRaw === "WARNING"
+          ? "VAROVANI"
+          : statusRaw === "OUT_OF_SCOPE"
+            ? "MIMO MESIC"
+            : "KRITICKE";
       return `
         <tr>
           <td class="name">${r.name || "-"}</td>
@@ -2012,8 +2071,20 @@
 
   function reviewStatusBadge(status) {
     const statusRaw = String(status || "RED_FLAG");
-    const statusClass = statusRaw === "OK" ? "badge-ok" : statusRaw === "WARNING" ? "badge-warning" : "badge-red";
-    const statusLabel = statusRaw === "OK" ? "V PORADKU" : statusRaw === "WARNING" ? "VAROVANI" : "KRITICKE";
+    const statusClass = statusRaw === "OK"
+      ? "badge-ok"
+      : statusRaw === "WARNING"
+        ? "badge-warning"
+        : statusRaw === "OUT_OF_SCOPE"
+          ? "badge-neutral"
+          : "badge-red";
+    const statusLabel = statusRaw === "OK"
+      ? "V PORADKU"
+      : statusRaw === "WARNING"
+        ? "VAROVANI"
+        : statusRaw === "OUT_OF_SCOPE"
+          ? "MIMO MESIC"
+          : "KRITICKE";
     return `<span class="badge ${statusClass}"><span class="badge-dot"></span>${escapeHtml(statusLabel)}</span>`;
   }
 
@@ -2114,7 +2185,8 @@
     if (unmatchedCount) unmatchedCount.textContent = `${counts.unmatched || 0}`;
     if (anomaliesCount) anomaliesCount.textContent = `${counts.top_anomalies || 0}`;
     if (summary) {
-      summary.textContent = `Kontrola jde po radcich podobne jako v Excelu. Opravte vazby primo ve sloupci "AI: Privazka k SPP", ulozte pravidlo a pak kliknete na "Prepocitat kontrolu".`;
+      const outOfScope = Number(counts.out_of_scope || 0);
+      summary.textContent = `Kontrola jde po radcich podobne jako v Excelu. Opravte vazby primo ve sloupci "AI: Privazka k SPP", ulozte pravidlo a pak kliknete na "Prepocitat kontrolu". Materialy mimo aktivni SPP mesic (${outOfScope}) se do tohoto review nepocitaji.`;
     }
     populateTrainingSppOptions();
     updateReviewSelectionMeta();
@@ -2741,10 +2813,6 @@
     form.append("period_month", document.getElementById("periodMonth").value || "2026-02");
     form.append("project_prompt", document.getElementById("projectPrompt").value || "");
     form.append("no_ai", "false");
-    const sppMappingJson = (document.getElementById("sppMappingJson").value || "").trim();
-    const invMappingJson = (document.getElementById("invMappingJson").value || "").trim();
-    if (sppMappingJson) form.append("spp_mapping", sppMappingJson);
-    if (invMappingJson) form.append("inventory_mapping", invMappingJson);
     form.append("spp", spp);
     form.append("inventory", inv);
     const nf45 = document.getElementById("fileNf45").files[0];
@@ -2768,38 +2836,7 @@
     }
   }
 
-  async function detectMapping() {
-    const spp = document.getElementById("fileSpp").files[0];
-    const inv = document.getElementById("fileInventory").files[0];
-    if (!spp && !inv) {
-      setRunStatus("Vyberte aspon SPP nebo Inventuru pro mapovani.", true);
-      return;
-    }
-    const form = new FormData();
-    form.append("project_code", state.project);
-    if (spp) form.append("spp", spp);
-    if (inv) form.append("inventory", inv);
-    resetReviewState(false);
-    setRunStatus("Detekuji mapovani...");
-    setBusy(true, "mapping");
-    try {
-      const data = await fetchJson("/api/detect-mapping", { method: "POST", body: form });
-      if (data.spp_mapping) {
-        document.getElementById("sppMappingJson").value = JSON.stringify(data.spp_mapping);
-      }
-      if (data.inventory_mapping) {
-        document.getElementById("invMappingJson").value = JSON.stringify(data.inventory_mapping);
-      }
-      setRunStatus("Mapovani nacteno. Potvrdte/upravte a spustte analyzu.");
-    } catch (e) {
-      setRunStatus(`Chyba mapovani: ${e.message}`, true);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   document.getElementById("analyzeForm")?.addEventListener("submit", runAnalysis);
-  document.getElementById("detectMappingBtn")?.addEventListener("click", detectMapping);
   document.getElementById("reviewRecalculateBtn")?.addEventListener("click", recalculateReview);
   document.getElementById("reviewFinalizeBtn")?.addEventListener("click", finalizeReview);
   document.getElementById("sessionsMonth")?.addEventListener("change", refreshDashboard);
@@ -2838,9 +2875,10 @@
     document.body.classList.toggle("table-focus");
     const btn = document.getElementById("tableWideBtn");
     if (btn) {
-      btn.textContent = document.body.classList.contains("table-focus")
-        ? "Vratit standardni sirku"
-        : "Cela sirka tabulky";
+      const expanded = document.body.classList.contains("table-focus");
+      const label = expanded ? "Obnovit standardni rozlozeni" : "Rozsirit tabulku";
+      btn.title = label;
+      btn.setAttribute("aria-label", label);
     }
   });
   document.querySelectorAll("[data-review-filter]")?.forEach((button) => {

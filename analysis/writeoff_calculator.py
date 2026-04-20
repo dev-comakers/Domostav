@@ -75,6 +75,7 @@ def calculate_expected_writeoff(
         )
 
     if not matched_spp:
+        unmatched_reason = _humanize_match_reason(match.match_reason, match.match_method, has_match=False)
         return WriteoffRecommendation(
             inventory_row=inv_item.row,
             inventory_name=inv_item.name,
@@ -82,8 +83,8 @@ def calculate_expected_writeoff(
             expected_writeoff=None,
             actual_deviation=inv_item.deviation,
             spp_reference="",
-            reason=_humanize_match_reason(match.match_reason, match.match_method, has_match=False),
-            status=AnomalyStatus.RED_FLAG,
+            reason=unmatched_reason,
+            status=_classify_unmatched_status(match.match_reason, unmatched_reason),
             match_method=match.match_method,
         )
 
@@ -338,6 +339,8 @@ def _humanize_match_reason(raw_reason: str, match_method: MatchMethod, *, has_ma
         return "AI matching nebyl spusten: chybi nakonfigurovany AI klient nebo API klic."
     if "ai did not return match for this row" in low:
         return "Bez shody: AI pro tento radek nevratila zadny pouzitelny vysledek."
+    if "aktivnim spp tohoto mesice nebyl nalezen zadny relevantni kandidat" in low:
+        return "Mimo aktivni SPP tohoto mesice: pro tento material nebyla nalezena zadna relevantni prace."
     if "candidate score" in low or "below threshold" in low or "below hard floor" in low:
         return "Bez shody: AI si nebyla dost jista navrzenou vazbou."
     if "diameter mismatch" in low:
@@ -358,3 +361,14 @@ def _humanize_match_reason(raw_reason: str, match_method: MatchMethod, *, has_ma
     if text:
         return text
     return "Bez shody: AI nenasla dostatecne jistou vazbu na SPP."
+
+
+def _classify_unmatched_status(raw_reason: str, human_reason: str) -> AnomalyStatus:
+    combined = f"{raw_reason or ''} {human_reason or ''}".lower()
+    out_of_scope_markers = [
+        "aktivnim spp tohoto mesice nebyl nalezen zadny relevantni kandidat",
+        "mimo aktivni spp tohoto mesice",
+    ]
+    if any(marker in combined for marker in out_of_scope_markers):
+        return AnomalyStatus.OUT_OF_SCOPE
+    return AnomalyStatus.RED_FLAG
