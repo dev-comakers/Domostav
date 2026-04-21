@@ -194,6 +194,7 @@ def _finalize_from_cached_artifacts(draft: dict) -> dict[str, object]:
         sheet_name=export_artifacts.get("sheet_name"),
         summary=export_artifacts.get("summary") or {},
         spp_coverage=export_artifacts.get("spp_coverage") or [],
+        header_row=export_artifacts.get("header_row"),
     )
     result = dict(cached.get("result_snapshot") or {})
     result["output_path"] = output_path

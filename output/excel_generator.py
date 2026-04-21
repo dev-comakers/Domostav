@@ -140,14 +140,50 @@ def _detect_unit_column(ws: openpyxl.worksheet.worksheet.Worksheet, header_row: 
 def _last_used_header_column(
     ws: openpyxl.worksheet.worksheet.Worksheet,
     header_row: int,
+    data_start_row: int | None = None,
+    data_sample_rows: int = 10,
 ) -> int:
+    """Find the rightmost populated column across the header band AND a few data rows.
+
+    This protects against multi-row headers (e.g. a main header row plus a sub-header
+    row) and ensures AI columns are always appended *after* all real data columns,
+    never on top of them.
+    """
+    scan_rows: list[int] = []
+    if data_start_row is not None and data_start_row > header_row:
+        for r in range(header_row, data_start_row):
+            if r >= 1:
+                scan_rows.append(r)
+    else:
+        scan_rows.append(header_row)
+
+    if data_start_row is not None:
+        for offset in range(data_sample_rows):
+            r = data_start_row + offset
+            if r <= ws.max_row:
+                scan_rows.append(r)
+
+    scan_row_set = set(scan_rows)
     last = 0
-    for col in range(1, ws.max_column + 1):
-        value = ws.cell(row=header_row, column=col).value
-        if value is None:
-            continue
-        if str(value).strip():
-            last = col
+    for row in scan_rows:
+        for col in range(1, ws.max_column + 1):
+            value = ws.cell(row=row, column=col).value
+            if value is None:
+                continue
+            if str(value).strip():
+                if col > last:
+                    last = col
+
+    # Account for merged cells whose visible span extends beyond the top-left cell.
+    # A merged range like AD9:AG10 stores its value only in AD9 but visually occupies
+    # columns AD..AG — writing into AE/AF/AG would be invisible/lost.
+    for mr in ws.merged_cells.ranges:
+        if mr.min_row in scan_row_set or mr.max_row in scan_row_set or any(
+            mr.min_row <= r <= mr.max_row for r in scan_row_set
+        ):
+            if mr.max_col > last:
+                last = mr.max_col
+
     return last or ws.max_column
 
 
@@ -159,6 +195,7 @@ def generate_output(
     sheet_name: str | None = None,
     summary: dict | None = None,
     spp_coverage: list[dict] | None = None,
+    header_row: int | None = None,
 ) -> Path:
     """Generate output by cloning inventory file and appending AI columns."""
     started_at = time.perf_counter()
@@ -202,9 +239,11 @@ def generate_output(
     )
     # endregion
 
-    header_row = data_start_row - 1
-    ai_start_col = _last_used_header_column(ws, header_row) + 1
-    unit_col = _detect_unit_column(ws, header_row)
+    effective_header_row = header_row if header_row and header_row >= 1 else max(1, data_start_row - 1)
+    ai_start_col = _last_used_header_column(ws, effective_header_row, data_start_row=data_start_row) + 1
+    unit_col = _detect_unit_column(ws, effective_header_row)
+    # Keep header_row local name consistent for downstream writes
+    header_row = effective_header_row
 
     for i, (col_name, width) in enumerate(AI_COLUMNS):
         col_idx = ai_start_col + i

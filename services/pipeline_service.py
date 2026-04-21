@@ -422,6 +422,7 @@ def run_analysis_pipeline(
     spp_coverage = _build_spp_coverage(spp_items, inventory_items, matches, recommendations)
     coverage_completed_at = time.perf_counter()
     data_start = getattr(inv_mapping, "data_start_row", None) or config.get("inventory", {}).get("data_start_row", DEFAULT_INVENTORY_DATA_START)
+    header_row_for_excel = getattr(inv_mapping, "header_row", None) if inv_mapping else None
 
     out: Path | None = None
     if generate_excel:
@@ -450,6 +451,7 @@ def run_analysis_pipeline(
             sheet_name=getattr(inv_mapping, "sheet_name", None) if inv_mapping else None,
             summary=summary,
             spp_coverage=spp_coverage,
+            header_row=header_row_for_excel,
         )
     excel_completed_at = time.perf_counter()
 
@@ -528,6 +530,7 @@ def run_analysis_pipeline(
             "summary": summary,
             "spp_coverage": spp_coverage,
             "data_start_row": data_start,
+            "header_row": header_row_for_excel,
             "sheet_name": getattr(inv_mapping, "sheet_name", None) if inv_mapping else None,
             "recommendations": [_model_to_dict(rec) for rec in recommendations],
         }
