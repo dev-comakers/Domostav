@@ -456,7 +456,10 @@ def _add_summary_sheet(
             except ValueError:
                 human_status = raw_status
             ws.cell(row=idx, column=7, value=human_status)
-            ws.cell(row=idx, column=8, value=item.get("one_line_explanation") or str(item.get("reason", ""))[:200])
+            # Prefer the AI-written reason; fall back to the one-line template.
+            ai_reason = str(item.get("reason") or "").strip()
+            explanation = ai_reason[:240] if ai_reason else str(item.get("one_line_explanation") or "")[:240]
+            ws.cell(row=idx, column=8, value=explanation)
 
     ws.column_dimensions["A"].width = 48
     ws.column_dimensions["B"].width = 58
@@ -614,6 +617,9 @@ def _add_spp_coverage_sheet(
 
 
 def _human_reason_fallback(rec: WriteoffRecommendation) -> str:
+    ai_reason = (rec.reason or "").strip()
+    if ai_reason:
+        return ai_reason[:240]
     if rec.status == AnomalyStatus.OUT_OF_SCOPE:
         return "Material je mimo aktivni SPP tohoto mesice."
     expected = f"{rec.expected_writeoff:.1f}" if rec.expected_writeoff is not None else "нет оценки"
@@ -621,5 +627,5 @@ def _human_reason_fallback(rec: WriteoffRecommendation) -> str:
     pct = f"{rec.deviation_percent:.1f}%" if rec.deviation_percent is not None else "нет %"
     return (
         f"Материал: {rec.inventory_name[:45]}. Ожидалось: {expected}. "
-        f"Факт: {actual}. Отклонение: {pct}. Статус: {rec.status.value}."
+        f"Факт: {actual}. Отклонение: {pct}. Статус: {_human_status_label(rec.status)}."
     )

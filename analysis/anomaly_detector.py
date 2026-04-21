@@ -15,6 +15,42 @@ from models import (
 from analysis.writeoff_calculator import calculate_expected_writeoff
 
 
+def _status_human(status: AnomalyStatus) -> str:
+    if status == AnomalyStatus.OK:
+        return "V poradku"
+    if status == AnomalyStatus.WARNING:
+        return "Varovani"
+    if status == AnomalyStatus.OUT_OF_SCOPE:
+        return "Mimo aktivni SPP mesic"
+    return "Kriticke"
+
+
+def _build_one_line_explanation(rec: WriteoffRecommendation, inv: InventoryItem | None) -> str:
+    """User-facing one-liner. Prefer the AI-written reason; fall back to a numeric template.
+
+    Emits clean labels (no "%%" artefact) and adds money impact when known.
+    """
+    ai_reason = (rec.reason or "").strip()
+    if ai_reason:
+        return ai_reason[:240]
+
+    unit = (inv.unit if inv else None) or ""
+    if rec.expected_writeoff is not None:
+        expected = f"{round(float(rec.expected_writeoff), 2)} {unit}".strip()
+    else:
+        expected = "нет оценки"
+    actual = f"{round(float(rec.actual_deviation or 0.0), 2)} {unit}".strip()
+    if rec.deviation_percent is not None:
+        dev = f"{round(float(rec.deviation_percent), 1)}%"
+    else:
+        dev = "нет %"
+    return (
+        f"Материал: {rec.inventory_name[:50]}. "
+        f"Ожидалось: {expected}. Факт: {actual}. "
+        f"Отклонение: {dev}. Статус: {_status_human(rec.status)}."
+    )
+
+
 def analyze_all(
     inventory: list[InventoryItem],
     spp: list[SPPItem],
@@ -194,15 +230,7 @@ def get_summary(
                     * abs(float((inv_by_row.get(a.inventory_row).price if inv_by_row.get(a.inventory_row) else 0.0) or 0.0)),
                     2,
                 ),
-                "one_line_explanation": (
-                    f"Материал: {a.inventory_name[:50]}. "
-                    f"Ожидалось: {round(float(a.expected_writeoff or 0), 2) if a.expected_writeoff is not None else 'нет оценки'} "
-                    f"{(inv_by_row.get(a.inventory_row).unit if inv_by_row.get(a.inventory_row) else '') or ''}. "
-                    f"Факт: {round(float(a.actual_deviation or 0), 2)} "
-                    f"{(inv_by_row.get(a.inventory_row).unit if inv_by_row.get(a.inventory_row) else '') or ''}. "
-                    f"Отклонение: {round(float(a.deviation_percent or 0), 1) if a.deviation_percent is not None else 'нет %'}%. "
-                    f"Статус: {a.status.value}."
-                ),
+                "one_line_explanation": _build_one_line_explanation(a, inv_by_row.get(a.inventory_row)),
             }
             for a in anomalies[:10]
         ],
