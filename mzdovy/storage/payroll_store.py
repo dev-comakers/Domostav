@@ -174,21 +174,24 @@ class PayrollStore:
     def list_employee_metadata(self) -> dict[str, list[str]]:
         with get_conn(schema=SCHEMA) as conn, conn.cursor() as cur:
             cur.execute(
-                "SELECT DISTINCT project_name AS value FROM payroll_employees "
+                "SELECT DISTINCT project_name AS value, LOWER(project_name) AS sort_key "
+                "FROM payroll_employees "
                 "WHERE project_name IS NOT NULL AND TRIM(project_name) <> '' "
-                "ORDER BY LOWER(project_name)"
+                "ORDER BY sort_key"
             )
             projects = [row["value"] for row in cur.fetchall()]
             cur.execute(
-                "SELECT DISTINCT coordinator_name AS value FROM payroll_employees "
+                "SELECT DISTINCT coordinator_name AS value, LOWER(coordinator_name) AS sort_key "
+                "FROM payroll_employees "
                 "WHERE coordinator_name IS NOT NULL AND TRIM(coordinator_name) <> '' "
-                "ORDER BY LOWER(coordinator_name)"
+                "ORDER BY sort_key"
             )
             coordinators = [row["value"] for row in cur.fetchall()]
             cur.execute(
-                "SELECT DISTINCT company_name AS value FROM payroll_employees "
+                "SELECT DISTINCT company_name AS value, LOWER(company_name) AS sort_key "
+                "FROM payroll_employees "
                 "WHERE company_name IS NOT NULL AND TRIM(company_name) <> '' "
-                "ORDER BY LOWER(company_name)"
+                "ORDER BY sort_key"
             )
             companies = [row["value"] for row in cur.fetchall()]
         return {"projects": projects, "coordinators": coordinators, "companies": companies}
