@@ -1,0 +1,60 @@
+<dialog id="employeeDialog" class="dialog">
+  <form method="dialog" id="employeeForm" class="dialog-form" data-mode="preview-create">
+    <div class="dialog-header">
+      <div>
+        <h3 id="employeeDialogTitle">Založit zaměstnance</h3>
+        <p class="dialog-copy" id="employeeDialogCopy">Vyplňte projekt, koordinátora, firmu a hodnoty odvodů. Změny se projeví po nejbližším přepočtu přehledu.</p>
+      </div>
+      <button type="button" class="dialog-close" id="cancelDialog" aria-label="Zavřít">×</button>
+    </div>
+
+    <input type="hidden" name="preview_row_id">
+    <input type="hidden" name="employee_id">
+
+    <label class="field">
+      <span>Jméno a příjmení</span>
+      <input type="text" name="full_name" required>
+    </label>
+
+    <div class="field-grid">
+      <label class="field">
+        <span>Projekt</span>
+        <select name="project_name" id="employeeProjectSelect">
+          <option value="">Bez projektu</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Koordinátor</span>
+        <select name="coordinator_name" id="employeeCoordinatorSelect">
+          <option value="">Bez koordinátora</option>
+        </select>
+      </label>
+    </div>
+
+    <label class="field">
+      <span>Název firmy</span>
+      <input type="text" name="company_name" list="companyOptions" placeholder="Fusion Temple s.r.o.">
+      <datalist id="companyOptions"></datalist>
+    </label>
+
+    <div class="field-grid">
+      <label class="field">
+        <span>Odvody strháváme (Kč)</span>
+        <input type="number" step="0.01" min="0" name="odvody_strhavame" id="employeeOdvodyStrhavame" placeholder="např. 4 500">
+      </label>
+
+      <label class="field">
+        <span>Měsíční mzda (Kč)</span>
+        <input type="number" step="0.01" min="0" name="mesicni_mzda" placeholder="např. 32 000">
+      </label>
+    </div>
+
+    <p class="helper-text">Odvody platíme se tahají z reportů Pamica, odvody strháváme zadává účetní ručně do databáze.</p>
+
+    <div class="dialog-actions">
+      <button type="button" class="button ghost" id="cancelDialogSecondary">Zrušit</button>
+      <button type="submit" class="button primary" id="employeeDialogSubmit">Uložit zaměstnance</button>
+    </div>
+  </form>
+</dialog>

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block header_actions %}
+  <div class="header-actions">
+    <button id="addEmployeeButton" type="button" class="button primary">Přidat zaměstnance</button>
+    <button id="importEmployeesButton" type="button" class="button secondary">Nahrát XLSX</button>
+    <button id="clearEmployeesButton" type="button" class="button ghost-danger">Smazat databázi</button>
+    <input id="employeesFileInput" type="file" accept=".xlsx" hidden>
+  </div>
+{% endblock %}
+
+{% block content %}
+  <section class="screen-panel">
+    <div class="panel-heading">
+      <div>
+        <h2>Seznam zaměstnanců</h2>
+        <span>Spravujte ručně přidané zaměstnance a data načtená z XLSX od účetní. Odvody strháváme a měsíční mzdu vyplňujete ručně.</span>
+      </div>
+    </div>
+
+    <div class="filter-bar">
+      <label class="filter-field">
+        <span>Hledat</span>
+        <input id="employeeSearch" type="search" placeholder="Jméno, firma, projekt, koordinátor…" class="search-input">
+      </label>
+      <label class="filter-field">
+        <span>Projekt</span>
+        <select id="employeeFilterProject"><option value="">Všechny projekty</option></select>
+      </label>
+      <label class="filter-field">
+        <span>Koordinátor</span>
+        <select id="employeeFilterCoordinator"><option value="">Všichni koordinátoři</option></select>
+      </label>
+      <label class="filter-field">
+        <span>Firma</span>
+        <select id="employeeFilterCompany"><option value="">Všechny firmy</option></select>
+      </label>
+      <div class="filter-meta">
+        <div id="employeesCount" class="toolbar-meta">0 zaměstnanců</div>
+        <button type="button" id="resetEmployeeFilters" class="button ghost small">Vyčistit filtry</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Jméno a příjmení</th>
+            <th>Projekt</th>
+            <th>Koordinátor</th>
+            <th>Firma</th>
+            <th class="num">Odvody strháváme</th>
+            <th class="num">Měsíční mzda</th>
+            <th>Akce</th>
+          </tr>
+        </thead>
+        <tbody id="employeesBody">
+          <tr><td colspan="7" class="empty">Načítám databázi zaměstnanců…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

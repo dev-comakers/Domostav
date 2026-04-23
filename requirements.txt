@@ -8,3 +8,5 @@ rich>=13.0
 click>=8.0
 flask>=3.0
 eval_type_backport>=0.3.0
+psycopg[binary,pool]>=3.2
+python-dotenv>=1.0

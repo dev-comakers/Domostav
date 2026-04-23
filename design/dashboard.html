@@ -40,7 +40,11 @@
 
   body {
     font-family: 'Inter', -apple-system, sans-serif;
-    background: var(--bg);
+    background:
+      radial-gradient(1200px 620px at 82% -10%, rgba(59, 130, 246, 0.16), transparent 60%),
+      radial-gradient(900px 520px at -10% 110%, rgba(139, 92, 246, 0.14), transparent 60%),
+      linear-gradient(180deg, #0B0E14 0%, #0D1119 100%);
+    background-attachment: fixed;
     color: var(--text);
     min-height: 100vh;
     display: flex;
@@ -49,7 +53,9 @@
   /* Sidebar */
   .sidebar {
     width: var(--sidebar-width);
-    background: var(--surface);
+    background: rgba(19, 23, 32, 0.82);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
@@ -139,6 +145,26 @@
     width: 20px;
     height: 20px;
     flex-shrink: 0;
+  }
+
+  .module-link {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .module-link .module-bullet {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--surface-3);
+    flex-shrink: 0;
+    transition: background 0.16s ease, box-shadow 0.16s ease;
+  }
+
+  .module-link.active .module-bullet,
+  .module-link:hover .module-bullet {
+    background: var(--accent);
+    box-shadow: 0 0 0 4px var(--accent-glow);
   }
 
   .nav-badge {
@@ -1336,12 +1362,17 @@
       <select id="projectSelectNav" style="margin-top:8px;width:100%;background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px">
       <option value="chirana">Vyberte projekt: Chirana</option>
       </select>
-      <div style="display:flex;align-items:center;gap:12px;color:var(--text-muted);font-size:14px;font-weight:500;margin-top:8px">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
-        Modul
-      </div>
-      <input type="text" value="Kontrola odpisu podle SPP" disabled style="margin-top:8px;width:100%;background:var(--surface-2);color:var(--text-muted);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px">
     </div>
+
+    <div class="nav-label" style="margin-top:8px">Moduly</div>
+    <a class="nav-item module-link active" href="#" id="nav-module-spp">
+      <span class="module-bullet"></span>
+      <span>Kontrola odpisu podle SPP</span>
+    </a>
+    <a class="nav-item module-link" href="/mzdovy/wizard/new">
+      <span class="module-bullet"></span>
+      <span>Mzdový přehled</span>
+    </a>
 
   </div>
 

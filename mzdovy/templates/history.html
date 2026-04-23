@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="content-grid history-grid">
+    <div class="screen-panel">
+      <div class="panel-heading">
+        <h2>Importy</h2>
+        <span>Vyberte měsíc, ke kterému se chcete vrátit.</span>
+      </div>
+      <div id="importsList" class="imports-list"></div>
+    </div>
+
+    <div class="screen-panel">
+      <div class="panel-heading">
+        <div>
+          <h2>Detail importu</h2>
+          <span>Souhrn a náhled vybraného přehledu</span>
+        </div>
+        <div class="panel-actions">
+          <a id="historyOpenWizard" class="button secondary disabled-link" href="#">Otevřít workflow</a>
+        </div>
+      </div>
+
+      <div class="summary-strip" id="summaryStrip">
+        <div class="summary-chip">
+          <span>Řádky</span>
+          <strong id="previewCount">0</strong>
+        </div>
+        <div class="summary-chip">
+          <span>Spárováno</span>
+          <strong id="matchedCount">0</strong>
+        </div>
+        <div class="summary-chip danger">
+          <span>Chybí</span>
+          <strong id="missingCount">0</strong>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Zaměstnanec</th>
+              <th>Firma</th>
+              <th>Projekt</th>
+              <th>Koordinátor</th>
+              <th class="num">Odvody platíme</th>
+              <th class="num">Odvody strháváme</th>
+              <th>Stav</th>
+              <th>Upozornění</th>
+            </tr>
+          </thead>
+          <tbody id="historyPreviewBody">
+            <tr><td colspan="8" class="empty">Vyberte import vlevo a zobrazí se jeho detail.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+{% endblock %}

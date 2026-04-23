@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-icon">D</div>
+      <div class="brand-text">Domostav <span>AI</span></div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Hlavn&iacute;</div>
+      <a class="nav-item" href="#">P&#345;ehled</a>
+      <a class="nav-item" href="#">Projekty</a>
+      <a class="nav-item active" href="#">Mzdov&yacute; p&#345;ehled</a>
+    </div>
+
+    <div class="sidebar-note">
+      Samostatn&yacute; mini-projekt na stejn&eacute;m stacku jako hlavn&iacute; aplikace.
+      A&#382; bude odlad&#283;n&yacute;, p&#367;jde ho jednodu&scaron;e napojit do produk&#269;n&iacute;ho dashboardu.
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="hero">
+        <div class="hero-copy">
+          <div class="eyebrow">Automatizace mezd</div>
+          <h1>Mzdov&yacute; p&#345;ehled</h1>
+          <p>Nahraj HTML reporty z POHODA, zkontroluj zam&#283;stnance a st&aacute;hni 2 hotov&eacute; Excel soubory: jeden pro Domostav a druh&yacute; pro ostatn&iacute; firmy bez Domostavu.</p>
+        </div>
+        <div class="hero-steps">
+          <div class="step-chip"><span>1</span>Nahr&aacute;t HTML reporty</div>
+          <div class="step-chip"><span>2</span>Zkontrolovat p&#345;ehled</div>
+          <div class="step-chip"><span>3</span>Doplnit chyb&#283;j&iacute;c&iacute; zam&#283;stnance</div>
+          <div class="step-chip"><span>4</span>St&aacute;hnout Domostav + ostatn&iacute; firmy</div>
+        </div>
+      </div>
+    </header>
+
+    <section class="cards" id="summaryCards">
+      <div class="card">
+        <div class="card-label">Importy</div>
+        <div class="card-value" id="importsCount">0</div>
+        <div class="card-note">Kolik zpracov&aacute;n&iacute; u&#382; v modulu existuje</div>
+      </div>
+      <div class="card">
+        <div class="card-label">&#344;&aacute;dky k revizi</div>
+        <div class="card-value" id="previewCount">0</div>
+        <div class="card-note">Kolik zam&#283;stnanc&#367; je v aktu&aacute;ln&iacute;m p&#345;ehledu</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Sp&aacute;rovan&iacute; zam&#283;stnanci</div>
+        <div class="card-value success" id="matchedCount">0</div>
+        <div class="card-note">Z&aacute;znamy, kter&eacute; u&#382; jsou propojen&eacute; s datab&aacute;z&iacute;</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Chyb&#283;j&iacute;c&iacute; zam&#283;stnanci</div>
+        <div class="card-value danger" id="missingCount">0</div>
+        <div class="card-note">Z&aacute;znamy, kde je pot&#345;eba zalo&#382;it nov&eacute;ho zam&#283;stnance</div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>1. Nahr&aacute;n&iacute; podklad&#367;</h2>
+            <span>Sem nahraje&scaron; HTML reporty z POHODA za jeden m&#283;s&iacute;c</span>
+          </div>
+          <span class="panel-badge">Pouze HTML z POHODA</span>
+        </div>
+        <form id="uploadForm" class="upload-form">
+          <label class="field">
+            <span>Obdob&iacute;</span>
+            <input type="text" name="period" placeholder="nap&#345;. 02/2026">
+          </label>
+          <label class="field field-file">
+            <span>HTML soubory</span>
+            <input id="fileInput" type="file" name="files" accept=".htm,.html" multiple hidden>
+            <div class="file-picker-row">
+              <button type="button" class="button secondary" id="chooseFilesButton">Vybrat soubory</button>
+              <div class="file-picker-hint">Soubory m&#367;&#382;e&scaron; p&#345;id&aacute;vat postupn&#283;. V&scaron;echny z&#367;stanou v seznamu, dokud je nesma&#382;e&scaron;.</div>
+            </div>
+            <div id="selectedFiles" class="selected-files empty-files">
+              <div class="selected-files-empty">Zat&iacute;m nejsou vybran&eacute; &#382;&aacute;dn&eacute; soubory.</div>
+            </div>
+          </label>
+          <button type="submit" class="button primary">Nahr&aacute;t soubory a p&#345;ipravit p&#345;ehled</button>
+        </form>
+        <div class="helper-box">
+          <strong>Co se stane po nahr&aacute;n&iacute;?</strong>
+          <ul>
+            <li>Syst&eacute;m p&#345;e&#269;te reporty `P&#345;ehled mezd`, `Socialka` a `Zdravotka`.</li>
+            <li>Vytvo&#345;&iacute; spole&#269;n&yacute; p&#345;ehled za zvolen&yacute; m&#283;s&iacute;c.</li>
+            <li>U chyb&#283;j&iacute;c&iacute;ch lid&iacute; nab&iacute;dne zalo&#382;en&iacute; zam&#283;stnance p&#345;&iacute;mo z p&#345;ehledu.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Posledn&iacute; importy</h2>
+            <span>Rychl&yacute; n&aacute;vrat k p&#345;edchoz&iacute;m zpracov&aacute;n&iacute;m</span>
+          </div>
+        </div>
+        <div id="importsList" class="imports-list"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h2>2. Kontrola p&#345;ehledu</h2>
+          <span>Tady zkontroluje&scaron; zam&#283;stnance, firmy a odvody p&#345;ed exportem</span>
+        </div>
+        <div class="panel-actions">
+          <button id="exportButton" class="button secondary" disabled>St&aacute;hnout Domostav + ostatn&iacute; firmy</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Zam&#283;stnanec</th>
+              <th>Firma</th>
+              <th>Projekt</th>
+              <th>Koordin&aacute;tor</th>
+              <th>Odvody plat&iacute;me</th>
+              <th>Odvody strh&aacute;v&aacute;me</th>
+              <th>Mzda</th>
+              <th>Stav</th>
+              <th>Upozorn&#283;n&iacute;</th>
+              <th>Akce</th>
+            </tr>
+          </thead>
+          <tbody id="previewBody">
+            <tr><td colspan="10" class="empty">Nahraj HTML reporty a syst&eacute;m p&#345;iprav&iacute; spole&#269;n&yacute; p&#345;ehled za cel&yacute; m&#283;s&iacute;c.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h2>3. Datab&aacute;ze zam&#283;stnanc&#367;</h2>
+          <span>Tady je cel&yacute; seznam lid&iacute;. M&#367;&#382;e&scaron; p&#345;id&aacute;vat, upravovat a mazat ru&#269;n&#283;, nebo nahr&aacute;t cel&yacute; XLSX.</span>
+        </div>
+        <div class="panel-actions">
+          <button id="addEmployeeButton" type="button" class="button primary">P&#345;idat zam&#283;stnance</button>
+          <button id="importEmployeesButton" type="button" class="button secondary">Nahr&aacute;t XLSX se zam&#283;stnanci</button>
+          <button id="clearEmployeesButton" type="button" class="button ghost-danger">Smazat celou datab&aacute;zi</button>
+          <input id="employeesFileInput" type="file" accept=".xlsx" hidden>
+        </div>
+      </div>
+      <div class="employees-toolbar">
+        <input id="employeeSearch" type="search" placeholder="Hledat podle jm&eacute;na, projektu nebo firmy..." class="employee-search">
+        <div id="employeesCount" class="employees-count">0 zam&#283;stnanc&#367;</div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Jm&eacute;no a p&#345;&iacute;jmen&iacute;</th>
+              <th>Projekt</th>
+              <th>Koordin&aacute;tor</th>
+              <th>K&oacute;d firmy</th>
+              <th>N&aacute;zev firmy</th>
+              <th>Akce</th>
+            </tr>
+          </thead>
+          <tbody id="employeesBody">
+            <tr><td colspan="6" class="empty">Datab&aacute;ze je pr&aacute;zdn&aacute;. Nahraj XLSX s lidmi nebo p&#345;idej prvn&iacute;ho ru&#269;n&#283;.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="employeeDialog" class="dialog">
+    <form method="dialog" id="employeeForm" class="dialog-form" data-mode="preview-create">
+      <h3 id="employeeDialogTitle">Zalo&#382;it nov&eacute;ho zam&#283;stnance</h3>
+      <p class="dialog-copy" id="employeeDialogCopy">Pou&#382;ij jen tehdy, kdy&#382; &#269;lov&#283;k v syst&eacute;mu je&scaron;t&#283; neexistuje.</p>
+      <input type="hidden" name="preview_row_id">
+      <input type="hidden" name="employee_id">
+      <label class="field">
+        <span>Jm&eacute;no a p&#345;&iacute;jmen&iacute;</span>
+        <input type="text" name="full_name" required>
+      </label>
+      <label class="field">
+        <span>Projekt</span>
+        <input type="text" name="project_name" placeholder="LEFT OF">
+      </label>
+      <label class="field">
+        <span>Koordin&aacute;tor</span>
+        <input type="text" name="coordinator_name" placeholder="Ivan">
+      </label>
+      <label class="field">
+        <span>K&oacute;d firmy</span>
+        <input type="text" name="company_code" placeholder="FT / DM / OKI">
+      </label>
+      <label class="field">
+        <span>N&aacute;zev firmy</span>
+        <input type="text" name="company_name" placeholder="Fusion Temple s.r.o.">
+      </label>
+      <div class="dialog-actions">
+        <button type="button" class="button ghost" id="cancelDialog">Zru&scaron;it</button>
+        <button type="submit" class="button primary" id="employeeDialogSubmit">Vytvo&#345;it zam&#283;stnance</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

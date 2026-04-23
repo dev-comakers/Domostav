@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: domostav-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: domostav
+      POSTGRES_USER: domostav_app
+      POSTGRES_PASSWORD: domostav_dev_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - domostav_pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U domostav_app -d domostav"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  domostav_pgdata:

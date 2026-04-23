@@ -15,18 +15,28 @@ from flask import Flask, jsonify, request, send_from_directory
 
 from config import settings
 from config.settings import DATA_DIR, OUTPUT_DIR, PROJECT_ROOT
+from db import apply_schemas
 from llm.client import ClaudeClient
 from models import ColumnMapping, WriteoffRecommendation
 from parsers.mapping_engine import auto_detect_mapping
 from services.pipeline_service import mapping_to_dict
 from storage.session_store import SessionStore
 
+# Create tables for both schemas before any route or blueprint touches the DB.
+apply_schemas()
+
 app = Flask(__name__, static_folder="design", static_url_path="")
 app.config["JSON_AS_ASCII"] = False
+app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024  # 64 MB per upload batch
+app.jinja_env.auto_reload = True
+
+from mzdovy import blueprint as mzdovy_blueprint
+
+app.register_blueprint(mzdovy_blueprint)
 
 UPLOAD_DIR = DATA_DIR / "uploads"
-DB_PATH = DATA_DIR / "app.db"
-store = SessionStore(DB_PATH)
+store = SessionStore()
 _DEBUG_LOG_PATH = "/Users/dmytriivezerian/Desktop/Domostav x Fajnwork/.cursor/debug-f07731.log"
 
 

@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block header_actions %}
+  <div class="header-actions">
+    {% if import_id %}
+      <a class="button ghost" href="{{ url_for('mzdovy.history_page', import_id=import_id) }}" data-nav>Zobrazit v historii</a>
+    {% endif %}
+  </div>
+{% endblock %}
+
+{% block content %}
+  <section class="wizard-progress">
+    <a class="progress-step {% if step == 'upload' %}active{% endif %}" href="{{ url_for('mzdovy.wizard_new') }}" data-nav>
+      <span>1</span>
+      <div>
+        <strong>Nahrát</strong>
+        <small>HTML z Pamica</small>
+      </div>
+    </a>
+    <a class="progress-step {% if step == 'review' %}active{% endif %} {% if not import_id %}disabled{% endif %}" href="{{ url_for('mzdovy.wizard_step', import_id=import_id, step='review') if import_id else '#' }}" {% if import_id %}data-nav{% endif %}>
+      <span>2</span>
+      <div>
+        <strong>Kontrola</strong>
+        <small>Přehled a vazby</small>
+      </div>
+    </a>
+    <a class="progress-step {% if step == 'recompute' %}active{% endif %} {% if not import_id %}disabled{% endif %}" href="{{ url_for('mzdovy.wizard_step', import_id=import_id, step='recompute') if import_id else '#' }}" {% if import_id %}data-nav{% endif %}>
+      <span>3</span>
+      <div>
+        <strong>Přepočet</strong>
+        <small>Synchronizace dat</small>
+      </div>
+    </a>
+    <a class="progress-step {% if step == 'export' %}active{% endif %} {% if not import_id %}disabled{% endif %}" href="{{ url_for('mzdovy.wizard_step', import_id=import_id, step='export') if import_id else '#' }}" {% if import_id %}data-nav{% endif %}>
+      <span>4</span>
+      <div>
+        <strong>Export</strong>
+        <small>XLSX podle importu</small>
+      </div>
+    </a>
+  </section>
+
+  {% if summary %}
+    <section class="summary-strip" id="summaryStrip">
+      <div class="summary-chip">
+        <span>Import</span>
+        <strong>#{{ summary.import_id }}</strong>
+      </div>
+      <div class="summary-chip">
+        <span>Období</span>
+        <strong id="summaryPeriod">{{ summary.period or "Nevyplněno" }}</strong>
+      </div>
+      <div class="summary-chip">
+        <span>Řádky</span>
+        <strong id="previewCount">{{ summary.preview_rows }}</strong>
+      </div>
+      <div class="summary-chip">
+        <span>Spárováno</span>
+        <strong id="matchedCount">{{ summary.matched_rows }}</strong>
+      </div>
+      <div class="summary-chip danger">
+        <span>Chybí</span>
+        <strong id="missingCount">{{ summary.missing_rows }}</strong>
+      </div>
+    </section>
+  {% endif %}
+
+  {% if step == "upload" %}
+    <section class="content-grid upload-grid">
+      <div class="screen-panel">
+        <div class="panel-heading">
+          <div>
+            <h2>Nahrání podkladů</h2>
+            <span>Přidejte všechny HTML soubory za jeden měsíc — Pamica je načte automaticky.</span>
+          </div>
+        </div>
+        <form id="uploadForm" class="upload-form">
+          <label class="field field-file">
+            <span>HTML soubory</span>
+            <input id="fileInput" type="file" name="files" accept=".htm,.html" multiple hidden>
+            <div class="file-picker-row">
+              <button type="button" class="button secondary" id="chooseFilesButton">Vybrat soubory</button>
+              <div class="file-picker-hint">Soubory můžete přidávat postupně. Výběr zůstane zachovaný, dokud ho sami nevyčistíte.</div>
+            </div>
+            <div id="selectedFiles" class="selected-files empty-files">
+              <div class="selected-files-empty">Zatím nejsou vybrané žádné soubory.</div>
+            </div>
+          </label>
+          <button type="submit" class="button primary button-block">Vytvořit přehled z dokumentů</button>
+        </form>
+      </div>
+
+      <div class="screen-panel">
+        <div class="panel-heading">
+          <div>
+            <h2>Poslední importy</h2>
+            <span>Rychlý návrat k předchozím měsícům</span>
+          </div>
+        </div>
+        <div id="importsList" class="imports-list"></div>
+      </div>
+    </section>
+  {% endif %}
+
+  {% if step == "review" %}
+    <section class="screen-panel review-panel">
+      <div class="panel-heading">
+        <div>
+          <h2>Kontrola přehledu</h2>
+          <span>Ověřte zaměstnance, firmy, projekty a upozornění před přepočtem a exportem.</span>
+        </div>
+        <div class="panel-actions">
+          <a class="button secondary" href="{{ url_for('mzdovy.employees_page') }}" data-nav>Otevřít databázi</a>
+          <a class="button primary" href="{{ url_for('mzdovy.wizard_step', import_id=import_id, step='recompute') }}" data-nav>Pokračovat</a>
+        </div>
+      </div>
+
+      <div id="reviewNotice" class="notice hidden"></div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Zaměstnanec</th>
+              <th>Firma</th>
+              <th>Projekt</th>
+              <th>Koordinátor</th>
+              <th class="num">Odvody platíme</th>
+              <th class="num">Odvody strháváme</th>
+              <th class="num">Měsíční mzda</th>
+              <th>Stav</th>
+              <th>Upozornění</th>
+              <th>Akce</th>
+            </tr>
+          </thead>
+          <tbody id="previewBody">
+            <tr><td colspan="10" class="empty">Načítám přehled…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+
+  {% if step == "recompute" %}
+    <section class="center-stage">
+      <div class="hero-panel hero-panel-primary">
+        <div class="eyebrow">Synchronizace</div>
+        <h2>Nejprve přepočítejte přehled podle aktuální databáze zaměstnanců.</h2>
+        <p>Přepočet znovu spáruje zaměstnance, projekty, koordinátory a firmy. Odvody platíme se tahají z reportů Pamica, odvody strháváme z databáze zaměstnanců.</p>
+        <div class="hero-actions">
+          <button id="recomputeButton" class="button primary">Přepočítat přehled</button>
+          <a class="button ghost" href="{{ url_for('mzdovy.wizard_step', import_id=import_id, step='review') }}" data-nav>Zpět na kontrolu</a>
+        </div>
+      </div>
+
+      <div id="recomputeResult" class="result-card hidden"></div>
+    </section>
+  {% endif %}
+
+  {% if step == "export" %}
+    <section class="center-stage export-stage">
+      <div class="screen-panel">
+        <div class="panel-heading">
+          <div>
+            <h2>Stáhnout export</h2>
+            <span>Vytvoříme jeden finální XLSX podle tohoto importu — pro Domostav samostatný soubor, pro ostatní firmy samostatný.</span>
+          </div>
+        </div>
+        <div class="export-actions-stack export-actions-full">
+          <button id="exportButton" class="button primary button-block">Stáhnout XLSX</button>
+          <a class="button ghost" href="{{ url_for('mzdovy.wizard_step', import_id=import_id, step='review') }}" data-nav>Zpět na kontrolu</a>
+        </div>
+      </div>
+    </section>
+  {% endif %}
+{% endblock %}

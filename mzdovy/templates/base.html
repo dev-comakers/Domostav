@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="{{ url_for('mzdovy.static', filename='styles.css') }}">
+</head>
+<body
+  data-page="{{ page_id }}"
+  data-import-id="{{ import_id or selected_import_id or '' }}"
+  data-step="{{ step or '' }}"
+  data-base-url="/mzdovy"
+>
+  <aside class="sidebar">
+    <a class="brand" href="/" data-nav>
+      <div class="brand-icon">D</div>
+      <div>
+        <div class="brand-text">Domostav <span>AI</span></div>
+      </div>
+    </a>
+
+    <nav class="nav-group" aria-label="Hlavní">
+      <div class="nav-label">Hlavní</div>
+      <a class="nav-item" href="/" data-nav>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Přehled
+      </a>
+      <a class="nav-item" href="/" data-nav>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        Projekty
+        <span class="nav-badge">Aktivní</span>
+      </a>
+      <div class="nav-item nav-item-static">
+        <div class="nav-item-label">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v6H4z"/><path d="M4 14h16v6H4z"/></svg>
+          Projekt
+        </div>
+        <select class="nav-select" disabled>
+          <option>Chirana</option>
+        </select>
+      </div>
+    </nav>
+
+    <nav class="nav-group" aria-label="Moduly">
+      <div class="nav-label">Moduly</div>
+      <a class="nav-item module-link" href="/" data-nav>
+        <span class="module-bullet"></span>
+        <span>Kontrola odpisu podle SPP</span>
+      </a>
+      <a class="nav-item module-link active" href="{{ url_for('mzdovy.wizard_new') }}" data-nav>
+        <span class="module-bullet"></span>
+        <span>Mzdový přehled</span>
+      </a>
+    </nav>
+
+    <nav class="nav-group" aria-label="Navigace modulu Mzdový přehled">
+      <div class="nav-label">Mzdový přehled</div>
+      <a class="nav-item {% if page_id == 'wizard' %}active{% endif %}" href="{{ url_for('mzdovy.wizard_new') }}" data-nav>Nový přehled</a>
+      <a class="nav-item {% if page_id == 'employees' %}active{% endif %}" href="{{ url_for('mzdovy.employees_page') }}" data-nav>Zaměstnanci</a>
+      <a class="nav-item {% if page_id == 'history' %}active{% endif %}" href="{{ url_for('mzdovy.history_page') }}" data-nav>Historie importů</a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-card">
+        <div class="user-avatar">AB</div>
+        <div class="user-info">
+          <div class="user-name">Oleksandr Balazh</div>
+          <div class="user-role">CEO Domostav</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="app-shell">
+    <header class="page-header">
+      <div>
+        <div class="eyebrow">Payroll workflow</div>
+        <h1>{{ page_title }}</h1>
+        <p>{{ page_description }}</p>
+      </div>
+      {% block header_actions %}{% endblock %}
+    </header>
+
+    {% block content %}{% endblock %}
+  </main>
+
+  {% include "_employee_dialog.html" %}
+  <script src="{{ url_for('mzdovy.static', filename='app.js') }}"></script>
+</body>
+</html>
