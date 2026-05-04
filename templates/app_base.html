@@ -124,13 +124,14 @@
     .user-status--active   { background:rgba(34,197,94,.12); color:#86efac; }
     .user-status--inactive { background:rgba(148,163,184,.12); color:#94a3b8; }
 
-    /* edit form row */
-    .user-edit-row {
-      display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+    /* edit form — inputs row */
+    .user-edit-inputs {
+      display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+      margin-bottom:10px;
     }
-    .user-edit-row select,
-    .user-edit-row input[type="password"] {
-      flex:1; min-width:130px;
+    .user-edit-inputs select,
+    .user-edit-inputs input[type="password"] {
+      flex:1; min-width:120px; max-width:180px;
       padding:10px 13px;
       background:var(--surface);
       border:1px solid var(--border);
@@ -141,20 +142,18 @@
       -webkit-appearance:none; appearance:none;
       transition:border-color .18s, box-shadow .18s;
     }
-    .user-edit-row select:focus,
-    .user-edit-row input[type="password"]:focus {
+    .user-edit-inputs input[type="password"] {
+      flex:2; min-width:140px;
+    }
+    .user-edit-inputs select:focus,
+    .user-edit-inputs input[type="password"]:focus {
       border-color:var(--accent);
       box-shadow:0 0 0 2px var(--accent-glow);
     }
-    .user-edit-actions {
-      display:flex; gap:8px; align-items:center; margin-top:0;
-    }
 
-    /* divider between edit and delete */
-    .user-card-footer {
-      display:flex; align-items:center; gap:10px; flex-wrap:wrap;
-      margin-top:14px; padding-top:14px;
-      border-top:1px solid var(--border);
+    /* actions row — always a single flex row, no separator */
+    .user-edit-actions {
+      display:flex; gap:8px; align-items:center;
     }
 
     @media (max-width:900px) {

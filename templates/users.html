@@ -121,37 +121,33 @@
             </span>
           </div>
 
-          {# ── edit form ── #}
-          <form method="post" action="/users/{{ user.id }}/update">
-            <div class="user-edit-row">
-              <select name="role" title="Role">
-                {% for role in roles %}
-                  <option value="{{ role.value }}" {% if role.value == user.role %}selected{% endif %}>
-                    {{ role.label }}
-                  </option>
-                {% endfor %}
-              </select>
-              <select name="is_active" title="Stav">
-                <option value="true"  {% if user.is_active %}selected{% endif %}>Aktivní</option>
-                <option value="false" {% if not user.is_active %}selected{% endif %}>Vypnutý</option>
-              </select>
-              <input name="password" type="password" placeholder="Nové heslo (nepovinné)">
-              <button class="btn btn-primary" type="submit">Uložit</button>
-            </div>
-          </form>
+          {# ── inputs row ── #}
+          <div class="user-edit-inputs">
+            <select name="role" form="edit-{{ user.id }}">
+              {% for role in roles %}
+                <option value="{{ role.value }}" {% if role.value == user.role %}selected{% endif %}>{{ role.label }}</option>
+              {% endfor %}
+            </select>
+            <select name="is_active" form="edit-{{ user.id }}">
+              <option value="true"  {% if user.is_active %}selected{% endif %}>Aktivní</option>
+              <option value="false" {% if not user.is_active %}selected{% endif %}>Vypnutý</option>
+            </select>
+            <input name="password" type="password" placeholder="Nové heslo" form="edit-{{ user.id }}">
+          </div>
 
-          {# ── delete (only if not yourself) ── #}
-          {% if current_user.id != user.id %}
-            <div class="user-card-footer">
-              <form method="post" action="/users/{{ user.id }}/delete">
+          {# ── actions row ── #}
+          <form id="edit-{{ user.id }}" method="post" action="/users/{{ user.id }}/update" style="display:contents"></form>
+          <div class="user-edit-actions">
+            <button class="btn btn-primary" type="submit" form="edit-{{ user.id }}">Uložit</button>
+            {% if current_user.id != user.id %}
+              <form method="post" action="/users/{{ user.id }}/delete" style="display:contents">
                 <button class="btn btn-danger" type="submit"
                   onclick="return confirm('Opravdu smazat uživatele {{ user.username }}?')">
                   Smazat účet
                 </button>
               </form>
-              <small style="color:var(--text-muted)">Tato akce je nevratná.</small>
-            </div>
-          {% endif %}
+            {% endif %}
+          </div>
         </div>
       {% endfor %}
     </div>
