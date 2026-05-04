@@ -71,7 +71,7 @@
             <button class="nav-toggle" type="button" data-nav-toggle="mzdovy" aria-label="Skrýt nebo zobrazit menu Mzdový přehled">⌄</button>
           </div>
           <div class="nav-subnav" aria-label="Mzdový přehled">
-            <a class="nav-item nav-subitem {% if page_id == 'wizard' %}active{% endif %}" href="{{ url_for('mzdovy.wizard_new') }}" data-nav>Nový import</a>
+            <a class="nav-item nav-subitem {% if page_id == 'wizard' and step not in ['review', 'recompute', 'export'] %}active{% endif %}" href="{{ url_for('mzdovy.wizard_new') }}" data-nav>Nový import</a>
             <a class="nav-item nav-subitem {% if page_id == 'employees' %}active{% endif %}" href="{{ url_for('mzdovy.employees_page') }}" data-nav>Databáze zaměstnanců</a>
             <a class="nav-item nav-subitem {% if page_id == 'wizard' and step in ['review', 'recompute', 'export'] %}active{% endif %}" href="{{ url_for('mzdovy.wizard_new') }}" data-nav>Kontrola přehledu</a>
             <a class="nav-item nav-subitem {% if page_id == 'history' %}active{% endif %}" href="{{ url_for('mzdovy.history_page') }}" data-nav>Historie importů</a>
