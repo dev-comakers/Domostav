@@ -18,8 +18,6 @@
       --muted:    #8a94ae;
       --accent:   #4f8cff;
       --amber:    #f59e0b;
-      --wood:     #a85d18;
-      --steel:    #6a6a80;
     }
 
     html, body { height: 100%; }
@@ -36,7 +34,7 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    /* ── ambient glows ─────────────────────────────────── */
+    /* ── ambient glows ─────────────────────────────── */
     .blob {
       position: fixed;
       border-radius: 50%;
@@ -47,14 +45,13 @@
     .blob-blue  { width:600px;height:600px;top:-200px;left:-150px;background:rgba(79,140,255,.07); }
     .blob-amber { width:500px;height:500px;bottom:-180px;right:-80px;background:rgba(245,158,11,.06); }
 
-    /* ── layout ────────────────────────────────────────── */
+    /* ── layout ────────────────────────────────────── */
     .wrap {
       position: relative;
       z-index: 2;
       display: flex;
       align-items: center;
-      justify-content: center;
-      gap: 64px;
+      gap: 56px;
       padding: 24px;
     }
     @media (max-width: 860px) {
@@ -62,42 +59,41 @@
       .scene-col { display: none; }
     }
 
-    /* ══════════════════════════════════════════════════════
-       SCENE  (overflow:hidden so nothing bleeds into card)
-    ══════════════════════════════════════════════════════ */
+    /* ════════════════════════════════════════════════
+       SCENE — strict bounding box, nothing escapes
+    ════════════════════════════════════════════════ */
     .scene-col {
       width: 340px;
       height: 420px;
       position: relative;
-      overflow: hidden;          /* ← nothing escapes the box */
+      overflow: hidden;          /* clip everything */
       flex-shrink: 0;
+      border-radius: 20px;
     }
 
-    /* ── wooden board / surface ────────────────────────── */
+    /* ── BOARD ───────────────────────────────────── */
+    /* board top surface at scene_y = 420 - 80 - 30 = 310 */
     .board {
       position: absolute;
       bottom: 80px;
-      left: 40px;
-      width: 260px;
-      height: 28px;
+      left: 30px;
+      width: 280px;
+      height: 30px;
       background: linear-gradient(180deg, #d4842a 0%, #a85d18 55%, #7c420e 100%);
       border-radius: 4px;
-      box-shadow: 0 8px 24px rgba(0,0,0,.55), inset 0 2px 0 rgba(255,255,255,.12);
+      box-shadow: 0 10px 28px rgba(0,0,0,.55), inset 0 2px 0 rgba(255,255,255,.14);
       z-index: 2;
     }
-    /* subtle grain */
-    .board::after {
+    .board::after {                                  /* wood grain */
       content:'';
       position:absolute;
       inset:0;
       border-radius:inherit;
       background: repeating-linear-gradient(90deg,
         transparent 0, transparent 22px,
-        rgba(0,0,0,.07) 22px, rgba(0,0,0,.07) 24px
-      );
+        rgba(0,0,0,.07) 22px, rgba(0,0,0,.07) 24px);
     }
-    /* board "thickness" shadow */
-    .board::before {
+    .board::before {                                  /* board side */
       content:'';
       position:absolute;
       top:100%; left:2px; right:2px;
@@ -106,68 +102,89 @@
       border-radius:0 0 4px 4px;
     }
 
-    /* ── nail ON TOP of the board ──────────────────────── */
-    /* nail tip: 80+28=108px from bottom → scene top = 420-108=312px */
+    /* small notch where saw is cutting */
+    .cut-notch {
+      position: absolute;
+      bottom: 110px;          /* on board top */
+      left: 95px;
+      width: 4px;
+      height: 0;
+      background: var(--bg);
+      border-radius: 1px;
+      z-index: 3;
+      animation: notch 1.8s 0.4s ease-out infinite;
+    }
+    @keyframes notch {
+      0%,100% { height: 0; }
+      50%     { height: 8px; }
+    }
+
+    /* ── NAIL on top of board ─────────────────────── */
+    /* nail base on board top: bottom=80+30=110; head top scene_y=420-(110+28)=282 */
     .nail {
       position: absolute;
-      bottom: 108px;             /* sits right on board top surface */
-      left: 193px;               /* x center */
-      width: 7px;
-      margin-left: -3px;
+      bottom: 110px;
+      left: 197px;             /* x-center ≈ 200 */
+      width: 6px;
       height: 28px;
       background: linear-gradient(180deg, #d8d8d8, #999);
       border-radius: 2px 2px 3px 3px;
       z-index: 3;
-      animation: nail-sink 1.5s cubic-bezier(.4,0,.2,1) infinite;
+      animation: nail-sink 1.4s cubic-bezier(.4,0,.2,1) infinite;
     }
-    .nail::before {              /* nail head cap */
+    .nail::before {            /* nail head cap */
       content: '';
       position: absolute;
       top: -6px; left: -5px;
-      width: 17px; height: 8px;
+      width: 16px; height: 7px;
       background: linear-gradient(135deg, #c8c8c8, #909090);
       border-radius: 3px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.4);
     }
     @keyframes nail-sink {
-      0%,35%  { height: 28px; }
+      0%,38%  { height: 28px; }
       52%,60% { height: 14px; }
       100%    { height: 28px; }
     }
 
-    /* ── HAMMER ────────────────────────────────────────────
-       Pivot = top of SVG (= grip at top, head swings DOWN)
-       At angle 0° head hits nail; starts at -68° (raised-left)
-    ──────────────────────────────────────────────────────── */
-    .hammer-group {
+    /* ════════════════════════════════════════════════
+       HAMMER — VERTICAL, hits TOP-DOWN on nail
+       Pivot: top-center of SVG (held at top of handle)
+       SVG 60x140 — handle vertical, head at BOTTOM
+       Pivot scene position = (200, 142)
+       At rotate(0): head bottom-center at scene (200, 282) = NAIL HEAD ✓
+    ════════════════════════════════════════════════ */
+    .hammer {
       position: absolute;
-      /* pivot in scene: x=193 (above nail), y=90 */
-      top: 90px;
-      left: 155px;               /* 193 - 38 (half SVG width=76) */
-      width: 76px;
-      height: 200px;
-      transform-origin: 50% 0%; /* pivot at grip = top of SVG */
-      animation: hammer-swing 1.5s cubic-bezier(.4,0,.2,1) infinite;
-      z-index: 4;
+      width: 60px;
+      height: 140px;
+      left: 170px;             /* 200 - 30 (half SVG width) */
+      top: 142px;
+      transform-origin: 50% 0%;  /* pivot = top-center of SVG */
+      animation: hammer-strike 1.4s cubic-bezier(.55,.05,.3,1) infinite;
+      z-index: 5;
     }
-    /* At angle=0°: head center ≈ 90 + 180 = 270px from top
-       Board top at 420-108=312 → close enough with head height */
-    @keyframes hammer-swing {
-      0%    { transform: rotate(-68deg); }  /* raised high-left */
-      32%   { transform: rotate(-68deg); }  /* hold at top */
-      50%   { transform: rotate(4deg); }    /* STRIKE */
-      54%   { transform: rotate(4deg); }    /* brief dwell */
-      68%   { transform: rotate(-30deg); }  /* bounce */
-      100%  { transform: rotate(-68deg); }  /* return */
+    /* Animation:
+       rotate(0)    = head straight DOWN, hits nail
+       rotate(+95)  = head up-and-LEFT (raised back-swing)
+       rotate(-15)  = head slightly past vertical to right (bounce)
+    */
+    @keyframes hammer-strike {
+      0%, 32%  { transform: rotate(95deg); }      /* RAISED — head up-left */
+      48%      { transform: rotate(0deg); }        /* STRIKE — head straight down */
+      52%      { transform: rotate(-8deg); }       /* tiny dwell past vertical */
+      62%      { transform: rotate(35deg); }       /* small recoil */
+      100%     { transform: rotate(95deg); }       /* back to raised */
     }
 
-    /* ── sparks (at nail head position in scene) ─────────── */
-    /* nail head: x=193, bottom=136px → top=420-136=284px */
+    /* ── SPARKS at nail head ─────────────────────── */
+    /* nail head is at scene (200, 282) */
     .sparks {
       position: absolute;
-      left: 193px;
-      top: 284px;
+      left: 200px;
+      top: 282px;
       width: 0; height: 0;
-      z-index: 5;
+      z-index: 6;
       pointer-events: none;
     }
     .sp {
@@ -176,22 +193,20 @@
       background: var(--amber);
       opacity: 0;
     }
-    .sp:nth-child(1)  { width:4px;height:4px; animation:sp 1.5s .51s ease-out infinite; --dx:18px;  --dy:-22px; }
-    .sp:nth-child(2)  { width:3px;height:3px; animation:sp 1.5s .53s ease-out infinite; --dx:-16px; --dy:-26px; background:#fcd34d; }
-    .sp:nth-child(3)  { width:5px;height:5px; animation:sp 1.5s .50s ease-out infinite; --dx:26px;  --dy:-14px; background:#fbbf24; }
-    .sp:nth-child(4)  { width:3px;height:3px; animation:sp 1.5s .55s ease-out infinite; --dx:-10px; --dy:-32px; background:#fef3c7; }
-    .sp:nth-child(5)  { width:4px;height:4px; animation:sp 1.5s .52s ease-out infinite; --dx:12px;  --dy:-30px; }
-    .sp:nth-child(6)  { width:2px;height:2px; animation:sp 1.5s .54s ease-out infinite; --dx:-24px; --dy:-20px; background:#fde68a; }
-    .sp:nth-child(7)  { width:5px;height:5px; animation:sp 1.5s .51s ease-out infinite; --dx:30px;  --dy:-10px; }
-    .sp:nth-child(8)  { width:3px;height:3px; animation:sp 1.5s .50s ease-out infinite; --dx:-28px; --dy:-14px; background:#fcd34d; }
-    .sp:nth-child(9)  { width:4px;height:4px; animation:sp 1.5s .56s ease-out infinite; --dx:8px;   --dy:-36px; }
-    .sp:nth-child(10) { width:2px;height:2px; animation:sp 1.5s .53s ease-out infinite; --dx:22px;  --dy:-28px; background:#fef9c3; }
-    .sp:nth-child(11) { width:5px;height:5px; animation:sp 1.5s .49s ease-out infinite; --dx:-14px; --dy:-30px; }
-    .sp:nth-child(12) { width:3px;height:3px; animation:sp 1.5s .55s ease-out infinite; --dx:34px;  --dy:-20px; background:#fbbf24; }
-    .sp:nth-child(13) { width:4px;height:4px; animation:sp 1.5s .52s ease-out infinite; --dx:-32px; --dy:-24px; }
-    .sp:nth-child(14) { width:2px;height:2px; animation:sp 1.5s .51s ease-out infinite; --dx:16px;  --dy:-38px; background:#fef3c7; }
-    .sp:nth-child(15) { width:4px;height:4px; animation:sp 1.5s .54s ease-out infinite; --dx:-6px;  --dy:-40px; background:#f59e0b; }
-    .sp:nth-child(16) { width:3px;height:3px; animation:sp 1.5s .50s ease-out infinite; --dx:38px;  --dy:-16px; background:#fcd34d; }
+    .sp:nth-child(1)  { width:4px;height:4px; animation:sp 1.4s .48s ease-out infinite; --dx:18px;  --dy:-22px; }
+    .sp:nth-child(2)  { width:3px;height:3px; animation:sp 1.4s .50s ease-out infinite; --dx:-16px; --dy:-26px; background:#fcd34d; }
+    .sp:nth-child(3)  { width:5px;height:5px; animation:sp 1.4s .47s ease-out infinite; --dx:26px;  --dy:-14px; background:#fbbf24; }
+    .sp:nth-child(4)  { width:3px;height:3px; animation:sp 1.4s .52s ease-out infinite; --dx:-10px; --dy:-32px; background:#fef3c7; }
+    .sp:nth-child(5)  { width:4px;height:4px; animation:sp 1.4s .49s ease-out infinite; --dx:12px;  --dy:-30px; }
+    .sp:nth-child(6)  { width:2px;height:2px; animation:sp 1.4s .51s ease-out infinite; --dx:-24px; --dy:-20px; background:#fde68a; }
+    .sp:nth-child(7)  { width:5px;height:5px; animation:sp 1.4s .48s ease-out infinite; --dx:30px;  --dy:-10px; }
+    .sp:nth-child(8)  { width:3px;height:3px; animation:sp 1.4s .47s ease-out infinite; --dx:-28px; --dy:-14px; background:#fcd34d; }
+    .sp:nth-child(9)  { width:4px;height:4px; animation:sp 1.4s .53s ease-out infinite; --dx:8px;   --dy:-36px; }
+    .sp:nth-child(10) { width:2px;height:2px; animation:sp 1.4s .50s ease-out infinite; --dx:22px;  --dy:-28px; background:#fef9c3; }
+    .sp:nth-child(11) { width:5px;height:5px; animation:sp 1.4s .46s ease-out infinite; --dx:-14px; --dy:-30px; }
+    .sp:nth-child(12) { width:3px;height:3px; animation:sp 1.4s .52s ease-out infinite; --dx:-32px; --dy:-22px; background:#fbbf24; }
+    .sp:nth-child(13) { width:4px;height:4px; animation:sp 1.4s .49s ease-out infinite; --dx:32px;  --dy:-22px; }
+    .sp:nth-child(14) { width:2px;height:2px; animation:sp 1.4s .48s ease-out infinite; --dx:14px;  --dy:-38px; background:#fef3c7; }
     @keyframes sp {
       0%   { opacity:0; transform:translate(0,0) scale(1); }
       4%   { opacity:1; }
@@ -199,16 +214,16 @@
       100% { opacity:0; transform:translate(calc(var(--dx)*.8),calc(var(--dy)*1.9 + 18px)) scale(.15); }
     }
 
-    /* impact flash */
+    /* impact flash on nail head */
     .flash {
       position: absolute;
-      left: 163px; top: 254px;
-      width: 64px; height: 64px;
+      left: 170px; top: 252px;
+      width: 60px; height: 60px;
       border-radius: 50%;
       background: radial-gradient(circle, rgba(253,211,77,.6), transparent 70%);
       opacity: 0; transform: scale(0);
-      animation: flash-pop 1.5s .51s ease-out infinite;
-      z-index: 3;
+      animation: flash-pop 1.4s .48s ease-out infinite;
+      z-index: 4;
     }
     @keyframes flash-pop {
       0%   { opacity:0; transform:scale(0); }
@@ -217,39 +232,45 @@
       100% { opacity:0; transform:scale(0); }
     }
 
-    /* ── SAW — 3-D perspective, cutting from the side ────
-       The saw blade is rotated ~50° on Y axis so it
-       disappears "into" the board and looks like it cuts
-       from the viewer's right side into the wood.
-    ──────────────────────────────────────────────────────── */
-    .saw-scene {
+    /* ════════════════════════════════════════════════
+       SAW — REAL 3D PERSPECTIVE
+       Wrapper provides perspective, inner uses rotateX
+       to tilt blade so it visually cuts INTO the board
+    ════════════════════════════════════════════════ */
+    .saw-stage {
       position: absolute;
-      bottom: 72px;              /* blade at board top level */
-      left: -10px;
-      perspective: 500px;
+      bottom: 86px;            /* blade at board top */
+      left: 0;
+      width: 220px;
+      height: 80px;
+      perspective: 800px;
+      perspective-origin: 50% 100%;
       z-index: 1;
     }
-    .saw-wrap {
-      transform-origin: right center;
-      transform: rotateY(52deg);  /* blade goes "into" board */
-      animation: saw-push 2.0s ease-in-out infinite;
+    .saw-3d {
+      width: 100%;
+      height: 100%;
+      transform-style: preserve-3d;
+      animation: saw-stroke 1.9s ease-in-out infinite;
     }
-    @keyframes saw-push {
-      0%   { transform: rotateY(52deg) translateZ( 0px); }
-      38%  { transform: rotateY(52deg) translateZ(-55px); }
-      40%  { transform: rotateY(52deg) translateZ(-58px); }
-      78%  { transform: rotateY(52deg) translateZ( 4px); }
-      80%  { transform: rotateY(52deg) translateZ( 0px); }
-      100% { transform: rotateY(52deg) translateZ( 0px); }
+    /* rotateX(50): top edge tilts AWAY from viewer (3D depth)
+       rotateZ(-7): slight angle, like saw is being pushed in
+       translateX/Z: animation back-and-forth */
+    @keyframes saw-stroke {
+      0%   { transform: rotateX(50deg) rotateZ(-7deg) translateX(0); }
+      45%  { transform: rotateX(50deg) rotateZ(-7deg) translateX(46px); }
+      55%  { transform: rotateX(50deg) rotateZ(-7deg) translateX(46px); }
+      100% { transform: rotateX(50deg) rotateZ(-7deg) translateX(0); }
     }
+    .saw-svg { width: 100%; height: 100%; display: block; overflow: visible; }
 
-    /* sawdust */
-    .dust-origin {
+    /* sawdust at cut point: scene (95, 305) */
+    .dust {
       position: absolute;
-      bottom: 108px;
-      left: 155px;
-      width:0; height:0;
-      z-index: 5;
+      left: 95px; top: 305px;
+      width: 0; height: 0;
+      z-index: 6;
+      pointer-events: none;
     }
     .dp {
       position: absolute;
@@ -257,12 +278,13 @@
       background: #c97b2a;
       opacity: 0;
     }
-    .dp:nth-child(1) { width:5px;height:5px; animation:dp 2.0s .42s ease-out infinite; --dx:12px;  --dy:-20px; }
-    .dp:nth-child(2) { width:3px;height:3px; animation:dp 2.0s .48s ease-out infinite; --dx:18px;  --dy:-26px; background:#e0872a; }
-    .dp:nth-child(3) { width:6px;height:6px; animation:dp 2.0s .44s ease-out infinite; --dx:-6px;  --dy:-22px; }
-    .dp:nth-child(4) { width:4px;height:4px; animation:dp 2.0s .50s ease-out infinite; --dx:22px;  --dy:-14px; background:#b06018; }
-    .dp:nth-child(5) { width:3px;height:3px; animation:dp 2.0s .45s ease-out infinite; --dx:-12px; --dy:-18px; }
-    .dp:nth-child(6) { width:5px;height:5px; animation:dp 2.0s .52s ease-out infinite; --dx:8px;   --dy:-30px; background:#d07822; }
+    .dp:nth-child(1) { width:5px;height:5px; animation:dp 1.9s .35s ease-out infinite; --dx:14px;  --dy:-22px; }
+    .dp:nth-child(2) { width:3px;height:3px; animation:dp 1.9s .42s ease-out infinite; --dx:20px;  --dy:-28px; background:#e0872a; }
+    .dp:nth-child(3) { width:6px;height:6px; animation:dp 1.9s .38s ease-out infinite; --dx:-6px;  --dy:-24px; }
+    .dp:nth-child(4) { width:4px;height:4px; animation:dp 1.9s .44s ease-out infinite; --dx:24px;  --dy:-14px; background:#b06018; }
+    .dp:nth-child(5) { width:3px;height:3px; animation:dp 1.9s .40s ease-out infinite; --dx:-12px; --dy:-18px; }
+    .dp:nth-child(6) { width:5px;height:5px; animation:dp 1.9s .46s ease-out infinite; --dx:8px;   --dy:-32px; background:#d07822; }
+    .dp:nth-child(7) { width:3px;height:3px; animation:dp 1.9s .39s ease-out infinite; --dx:-18px; --dy:-22px; }
     @keyframes dp {
       0%  { opacity:0; transform:translate(0,0) scale(1); }
       8%  { opacity:1; }
@@ -270,11 +292,11 @@
       100%{ opacity:0; transform:translate(calc(var(--dx)*.9),calc(var(--dy)*1.8+16px)) scale(.2); }
     }
 
-    /* ══════════════════════════════════════════════════════
+    /* ════════════════════════════════════════════════
        LOGIN CARD
-    ══════════════════════════════════════════════════════ */
+    ════════════════════════════════════════════════ */
     .card {
-      width: 420px;
+      width: 400px;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 28px;
@@ -288,8 +310,7 @@
       flex-shrink: 0;
     }
     .card::before {
-      content:'';
-      position:absolute;
+      content:''; position:absolute;
       top:-100px; right:-100px;
       width:300px; height:300px;
       background:radial-gradient(circle, rgba(79,140,255,.12), transparent 70%);
@@ -358,112 +379,144 @@
     <!-- ═══════════ SCENE ═══════════ -->
     <div class="scene-col">
 
-      <!-- board -->
+      <!-- board (the wood being worked) -->
       <div class="board"></div>
+      <div class="cut-notch"></div>
 
-      <!-- sawdust at cut point -->
-      <div class="dust-origin">
-        <div class="dp"></div><div class="dp"></div><div class="dp"></div>
-        <div class="dp"></div><div class="dp"></div><div class="dp"></div>
-      </div>
+      <!-- SAW with REAL 3D PERSPECTIVE TRANSFORM -->
+      <div class="saw-stage">
+        <div class="saw-3d">
+          <svg class="saw-svg" viewBox="0 0 240 80" fill="none">
+            <defs>
+              <linearGradient id="bladeGrad" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0"   stop-color="#dcdce8"/>
+                <stop offset=".5"  stop-color="#b8b8c8"/>
+                <stop offset="1"   stop-color="#8e8ea0"/>
+              </linearGradient>
+              <linearGradient id="handleGrad" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0" stop-color="#a06030"/>
+                <stop offset="1" stop-color="#5a3210"/>
+              </linearGradient>
+            </defs>
 
-      <!-- SAW — 3D perspective (blade enters scene from left) -->
-      <div class="saw-scene">
-        <div class="saw-wrap">
-          <svg width="220" height="46" viewBox="0 0 220 46" fill="none" overflow="visible">
-            <!-- BLADE body — tapers from handle to tip -->
-            <path d="M0 8 L170 8 L176 22 L170 36 L0 36 Z" fill="#b8b8c8"/>
-            <!-- top sheen -->
-            <rect x="0" y="8" width="170" height="7" rx="0" fill="#d0d0e0"/>
-            <!-- bevel line -->
-            <line x1="2" y1="15" x2="168" y2="15" stroke="rgba(255,255,255,.22)" stroke-width="1.2"/>
-            <!-- blade tip — sharp point -->
-            <path d="M170 8 L220 22 L170 36 Z" fill="#c8c8d8"/>
-            <!-- TEETH on bottom edge — sharp & aggressive -->
+            <!-- BLADE main body — tapers toward tip -->
+            <path d="M 8 22 L 178 28 L 184 38 L 184 48 L 178 52 L 8 50 Z"
+                  fill="url(#bladeGrad)" stroke="#666678" stroke-width=".5"/>
+            <!-- top sheen on blade -->
+            <path d="M 8 22 L 178 28 L 178 32 L 8 26 Z" fill="rgba(255,255,255,.32)"/>
+            <!-- bevel mid-line -->
+            <line x1="10" y1="36" x2="180" y2="40" stroke="rgba(255,255,255,.18)" stroke-width="1"/>
+
+            <!-- TEETH on bottom edge — sharp triangles -->
             <path d="
-              M4 36 L8 46 L12 36
-              L16 46 L20 36
-              L24 46 L28 36
-              L32 46 L36 36
-              L40 46 L44 36
-              L48 46 L52 36
-              L56 46 L60 36
-              L64 46 L68 36
-              L72 46 L76 36
-              L80 46 L84 36
-              L88 46 L92 36
-              L96 46 L100 36
-              L104 46 L108 36
-              L112 46 L116 36
-              L120 46 L124 36
-              L128 46 L132 36
-              L136 46 L140 36
-              L144 46 L148 36
-              L152 46 L156 36
-              L160 46 L164 36"
-              fill="#a8a8b8" stroke="#808090" stroke-width=".6" stroke-linejoin="miter"/>
-            <!-- HANDLE — pistol grip, attached right -->
-            <path d="M-4 12 Q-16 8 -24 14 L-26 28 Q-24 38 -14 38 L-4 36 Z" fill="#7a4a1f"/>
-            <path d="M-4 14 Q-14 11 -20 16 L-22 27 Q-20 34 -12 34 L-4 32 Z" fill="#9b6030"/>
-            <!-- grip lines on handle -->
-            <line x1="-18" y1="20" x2="-10" y2="18" stroke="rgba(0,0,0,.25)" stroke-width="1.5" stroke-linecap="round"/>
-            <line x1="-20" y1="26" x2="-11" y2="24" stroke="rgba(0,0,0,.2)" stroke-width="1.5" stroke-linecap="round"/>
-            <!-- rivet -->
-            <circle cx="-8" cy="22" r="3.5" fill="#b8902a" stroke="#906810" stroke-width=".8"/>
-            <circle cx="-8" cy="22" r="1.8" fill="#ddb840"/>
+              M 10 50 L 14 60 L 18 50
+              L 22 60 L 26 50
+              L 30 60 L 34 50
+              L 38 60 L 42 50
+              L 46 60 L 50 50
+              L 54 60 L 58 50
+              L 62 60 L 66 50
+              L 70 60 L 74 50
+              L 78 60 L 82 50
+              L 86 60 L 90 50
+              L 94 60 L 98 50
+              L 102 60 L 106 50
+              L 110 60 L 114 50
+              L 118 60 L 122 50
+              L 126 60 L 130 50
+              L 134 60 L 138 50
+              L 142 60 L 146 50
+              L 150 60 L 154 50
+              L 158 60 L 162 50
+              L 166 60 L 170 50
+              L 174 60 L 178 51"
+              fill="#909098" stroke="#5e5e6c" stroke-width=".7" stroke-linejoin="miter"/>
+
+            <!-- HANDLE — pistol grip on right (3D-ish) -->
+            <path d="M 178 18 Q 210 16 218 30 L 224 46 Q 222 62 208 66 L 192 66 Q 180 64 178 52 L 178 36 Z"
+                  fill="url(#handleGrad)" stroke="#3a2008" stroke-width="1"/>
+            <!-- inner hole (where hand goes) -->
+            <path d="M 192 28 Q 208 28 210 40 Q 210 52 198 56 Q 188 54 188 44 Q 188 32 192 28 Z"
+                  fill="#080c14"/>
+            <!-- handle highlight -->
+            <path d="M 184 22 Q 200 20 206 28 L 208 32 Q 198 28 188 32 Z"
+                  fill="rgba(255,255,255,.18)"/>
+            <!-- rivets -->
+            <circle cx="186" cy="34" r="2.5" fill="#c8a040" stroke="#806020" stroke-width=".7"/>
+            <circle cx="186" cy="34" r="1.2" fill="#f0d070"/>
+            <circle cx="200" cy="60" r="2.5" fill="#c8a040" stroke="#806020" stroke-width=".7"/>
+            <circle cx="200" cy="60" r="1.2" fill="#f0d070"/>
           </svg>
         </div>
       </div>
 
-      <!-- HAMMER — proper T-shape, pivot at grip top ── -->
-      <div class="hammer-group">
-        <svg width="76" height="200" viewBox="0 0 76 200" fill="none" overflow="visible">
-          <!-- GRIP / handle — wood, runs top to bottom of SVG -->
-          <!-- handle shaft -->
-          <rect x="31" y="0" width="14" height="165" rx="7" fill="#7a4a1f"/>
-          <rect x="33" y="2" width="10" height="161" rx="5" fill="#9b6030"/>
-          <!-- grip tape bands -->
-          <rect x="31" y="120" width="14" height="5" rx="2" fill="rgba(0,0,0,.18)"/>
-          <rect x="31" y="132" width="14" height="5" rx="2" fill="rgba(0,0,0,.18)"/>
-          <rect x="31" y="144" width="14" height="5" rx="2" fill="rgba(0,0,0,.18)"/>
-          <!-- handle highlight -->
-          <rect x="34" y="4" width="4" height="155" rx="2" fill="rgba(255,255,255,.12)"/>
+      <!-- sawdust at cut point -->
+      <div class="dust">
+        <div class="dp"></div><div class="dp"></div><div class="dp"></div>
+        <div class="dp"></div><div class="dp"></div><div class="dp"></div>
+        <div class="dp"></div>
+      </div>
 
-          <!-- HEAD — classic claw hammer T-shape ── -->
-          <!-- main head body (horizontal bar of the T) -->
-          <rect x="4" y="144" width="68" height="46" rx="7" fill="#555568"/>
-          <!-- top face sheen -->
-          <rect x="6" y="146" width="64" height="10" rx="5" fill="#686880"/>
-          <!-- striking FACE — bottom face, center band -->
-          <rect x="18" y="186" width="40" height="5" rx="2" fill="#888898"/>
-          <!-- face highlight -->
-          <rect x="20" y="186" width="36" height="2" rx="1" fill="rgba(255,255,255,.18)"/>
-          <!-- side chamfer lines -->
-          <line x1="6"  y1="148" x2="70" y2="148" stroke="rgba(255,255,255,.14)" stroke-width="1.5"/>
-          <line x1="6"  y1="152" x2="70" y2="152" stroke="rgba(255,255,255,.07)" stroke-width="1"/>
+      <!-- HAMMER — vertical, hits TOP-DOWN on nail -->
+      <div class="hammer">
+        <svg viewBox="0 0 60 140" fill="none">
+          <defs>
+            <linearGradient id="handleGradH" x1="0" x2="1" y1="0" y2="0">
+              <stop offset="0"   stop-color="#5a3210"/>
+              <stop offset=".5"  stop-color="#9b6030"/>
+              <stop offset="1"   stop-color="#5a3210"/>
+            </linearGradient>
+            <linearGradient id="headGrad" x1="0" x2="1" y1="0" y2="0">
+              <stop offset="0"  stop-color="#3e3e50"/>
+              <stop offset=".5" stop-color="#6e6e84"/>
+              <stop offset="1"  stop-color="#3e3e50"/>
+            </linearGradient>
+          </defs>
 
-          <!-- CLAW — on the top-back of head -->
-          <path d="M8 144 Q2 132 6 122 Q10 114 16 118" stroke="#555568" stroke-width="8" fill="none" stroke-linecap="round"/>
-          <path d="M8 144 Q3 134 7 126 Q11 120 16 122" stroke="#686880" stroke-width="4" fill="none" stroke-linecap="round"/>
+          <!-- HANDLE — vertical wooden grip (top to head) -->
+          <rect x="24" y="0" width="12" height="100" rx="6" fill="url(#handleGradH)"/>
+          <!-- grip wraps -->
+          <rect x="24" y="74" width="12" height="4" rx="2" fill="rgba(0,0,0,.28)"/>
+          <rect x="24" y="82" width="12" height="4" rx="2" fill="rgba(0,0,0,.28)"/>
+          <rect x="24" y="90" width="12" height="4" rx="2" fill="rgba(0,0,0,.28)"/>
+          <!-- handle highlight stripe -->
+          <rect x="27" y="2" width="2.5" height="96" rx="1" fill="rgba(255,255,255,.14)"/>
 
-          <!-- head-handle junction reinforcement ring -->
-          <rect x="28" y="140" width="20" height="10" rx="3" fill="#606075"/>
-          <rect x="29" y="141" width="18" height="4" rx="2" fill="rgba(255,255,255,.1)"/>
+          <!-- HEAD-HANDLE COLLAR -->
+          <rect x="20" y="96" width="20" height="10" rx="2" fill="#4a4a5e"/>
+          <rect x="21" y="97" width="18" height="3" rx="1" fill="rgba(255,255,255,.12)"/>
+
+          <!-- HEAD — classic claw hammer T-shape (horizontal at bottom) -->
+          <rect x="3" y="100" width="54" height="38" rx="6" fill="url(#headGrad)"/>
+          <!-- top sheen of head -->
+          <rect x="5" y="102" width="50" height="8" rx="3" fill="rgba(255,255,255,.16)"/>
+          <!-- chamfer line -->
+          <line x1="6" y1="112" x2="54" y2="112" stroke="rgba(255,255,255,.08)" stroke-width="1"/>
+          <!-- striking face indent -->
+          <rect x="22" y="134" width="16" height="4" rx="2" fill="#252535"/>
+          <!-- small face highlight -->
+          <rect x="24" y="135" width="12" height="1.5" rx=".7" fill="rgba(255,255,255,.2)"/>
+
+          <!-- CLAW — on the left of head, pointing back-up -->
+          <path d="M 5 102 Q -4 92 0 80 Q 4 72 12 78"
+                stroke="#3e3e50" stroke-width="6" fill="none" stroke-linecap="round"/>
+          <path d="M 5 102 Q -2 94 2 84 Q 6 78 11 82"
+                stroke="#6e6e84" stroke-width="3" fill="none" stroke-linecap="round"/>
+          <!-- claw split -->
+          <path d="M 1 86 L 3 92" stroke="#1a1a26" stroke-width="2" stroke-linecap="round"/>
         </svg>
       </div>
 
-      <!-- nail (ON the board) -->
+      <!-- nail (ON board) -->
       <div class="nail"></div>
 
-      <!-- impact flash -->
+      <!-- impact flash + sparks -->
       <div class="flash"></div>
-
-      <!-- sparks -->
       <div class="sparks">
         <div class="sp"></div><div class="sp"></div><div class="sp"></div><div class="sp"></div>
         <div class="sp"></div><div class="sp"></div><div class="sp"></div><div class="sp"></div>
         <div class="sp"></div><div class="sp"></div><div class="sp"></div><div class="sp"></div>
-        <div class="sp"></div><div class="sp"></div><div class="sp"></div><div class="sp"></div>
+        <div class="sp"></div><div class="sp"></div>
       </div>
 
     </div><!-- /scene-col -->
