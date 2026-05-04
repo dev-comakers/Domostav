@@ -6,15 +6,85 @@
   <title>{{ title }}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="{{ url_for('mzdovy.static', filename='styles.css') }}">
+  <style>
+    .admin-grid { display: grid; gap: 20px; }
+    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .field label { display: block; margin-bottom: 8px; color: var(--text-muted); font-size: 13px; font-weight: 600; }
+    .field input, .field select, .field textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface-2);
+      color: var(--text);
+      padding: 12px 14px;
+      font: inherit;
+    }
+    .field textarea { min-height: 108px; resize: vertical; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 0;
+      border-radius: 14px;
+      padding: 12px 16px;
+      color: white;
+      font: inherit;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .btn-primary { background: linear-gradient(135deg, #4f8cff, #6ea8ff); }
+    .btn-secondary {
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text);
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: var(--accent-glow);
+      color: #b9d2ff;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .admin-table { width: 100%; border-collapse: collapse; }
+    .admin-table th, .admin-table td { padding: 14px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
+    .admin-table th { color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+    .row-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .row-form input, .row-form select { width: auto; min-width: 140px; }
+    .danger-link {
+      border: 1px solid rgba(251, 113, 133, .28);
+      background: rgba(251, 113, 133, .12);
+      color: #fecdd3;
+    }
+    .error {
+      padding: 12px 14px;
+      border: 1px solid rgba(251, 113, 133, .28);
+      border-radius: 14px;
+      background: rgba(251, 113, 133, .12);
+      color: #fecdd3;
+    }
+    .role-card-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .role-card {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--surface-2);
+      padding: 16px;
+    }
+    .role-card strong { display: block; margin-bottom: 8px; }
+    .role-card span { color: var(--text-muted); font-size: 13px; line-height: 1.5; }
+    @media (max-width: 900px) {
+      .form-grid, .role-card-grid { grid-template-columns: 1fr; }
+      .row-form input, .row-form select { width: 100%; }
+    }
+  </style>
 </head>
-<body
-  data-page="{{ page_id }}"
-  data-import-id="{{ import_id or selected_import_id or '' }}"
-  data-step="{{ step or '' }}"
-  data-base-url="/mzdovy"
->
+<body>
   <aside class="sidebar">
     <a class="brand" href="{{ '/' if can_access_spp else url_for('mzdovy.wizard_new') }}" data-nav>
       <div class="brand-icon">D</div>
@@ -32,10 +102,10 @@
           Aktivní projekt
         </div>
         <select class="nav-select" id="projectSelectNav">
-          <option>Chirana</option>
+          <option>CHIRANA (NOVECON)</option>
         </select>
       </div>
-      <a class="nav-item" href="{{ url_for('new_project_page') }}" data-nav>
+      <a class="nav-item {% if active_page == 'project_new' %}active{% endif %}" href="{{ url_for('new_project_page') }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
         Nový projekt
       </a>
@@ -47,34 +117,34 @@
       {% if can_access_spp %}
         <div class="module-nav-block" data-nav-block="spp">
           <div class="module-heading">
-            <a class="nav-item module-link" href="/" data-nav>
+            <a class="nav-item module-link {% if active_page == 'spp' %}active{% endif %}" href="/">
               <span class="module-bullet"></span>
               <span>Kontrola odpisu podle SPP</span>
             </a>
             <button class="nav-toggle" type="button" data-nav-toggle="spp" aria-label="Skrýt nebo zobrazit menu SPP">⌄</button>
           </div>
           <div class="nav-subnav" aria-label="Kontrola odpisu podle SPP">
-            <a class="nav-item nav-subitem" href="/" data-nav>Nová analýza</a>
-            <a class="nav-item nav-subitem" href="/#activeProjectCard" data-nav>Aktuální projekt</a>
-            <a class="nav-item nav-subitem" href="/#reviewPanel" data-nav>Kontrola před exportem</a>
-            <a class="nav-item nav-subitem" href="/#sessionsList" data-nav>Historie analýz</a>
+            <a class="nav-item nav-subitem" href="/">Nová analýza</a>
+            <a class="nav-item nav-subitem" href="/#activeProjectCard">Aktuální projekt</a>
+            <a class="nav-item nav-subitem" href="/#reviewPanel">Kontrola před exportem</a>
+            <a class="nav-item nav-subitem" href="/#sessionsList">Historie analýz</a>
           </div>
         </div>
       {% endif %}
       {% if can_access_mzdovy %}
         <div class="module-nav-block" data-nav-block="mzdovy">
           <div class="module-heading">
-            <a class="nav-item module-link active" href="{{ url_for('mzdovy.wizard_new') }}" data-nav>
+            <a class="nav-item module-link {% if active_page == 'mzdovy' %}active{% endif %}" href="{{ url_for('mzdovy.wizard_new') }}">
               <span class="module-bullet"></span>
               <span>Mzdový přehled</span>
             </a>
             <button class="nav-toggle" type="button" data-nav-toggle="mzdovy" aria-label="Skrýt nebo zobrazit menu Mzdový přehled">⌄</button>
           </div>
           <div class="nav-subnav" aria-label="Mzdový přehled">
-            <a class="nav-item nav-subitem {% if page_id == 'wizard' %}active{% endif %}" href="{{ url_for('mzdovy.wizard_new') }}" data-nav>Nový import</a>
-            <a class="nav-item nav-subitem {% if page_id == 'employees' %}active{% endif %}" href="{{ url_for('mzdovy.employees_page') }}" data-nav>Databáze zaměstnanců</a>
-            <a class="nav-item nav-subitem {% if page_id == 'wizard' and step in ['review', 'recompute', 'export'] %}active{% endif %}" href="{{ url_for('mzdovy.wizard_new') }}" data-nav>Kontrola přehledu</a>
-            <a class="nav-item nav-subitem {% if page_id == 'history' %}active{% endif %}" href="{{ url_for('mzdovy.history_page') }}" data-nav>Historie importů</a>
+            <a class="nav-item nav-subitem" href="{{ url_for('mzdovy.wizard_new') }}">Nový import</a>
+            <a class="nav-item nav-subitem" href="{{ url_for('mzdovy.employees_page') }}">Databáze zaměstnanců</a>
+            <a class="nav-item nav-subitem" href="{{ url_for('mzdovy.wizard_new') }}">Kontrola přehledu</a>
+            <a class="nav-item nav-subitem" href="{{ url_for('mzdovy.history_page') }}">Historie importů</a>
           </div>
         </div>
       {% endif %}
@@ -83,7 +153,10 @@
     {% if can_manage_users %}
     <nav class="nav-group" aria-label="Uživatelé">
       <div class="nav-label">Uživatelé</div>
-      <a class="nav-item" href="/users">Seznam uživatelů</a>
+      <a class="nav-item {% if active_page == 'users' %}active{% endif %}" href="{{ url_for('users_page') }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Seznam uživatelů
+      </a>
     </nav>
     {% endif %}
 
@@ -95,14 +168,14 @@
           <div class="user-role">{{ role_label(current_user.role) if current_user else "Bez role" }}</div>
         </div>
       </div>
-      <a class="nav-item logout-link" href="/logout">Odhlásit se</a>
+      <a class="nav-item logout-link" href="{{ url_for('logout_page') }}">Odhlásit se</a>
     </div>
   </aside>
 
   <main class="app-shell">
     <header class="page-header">
       <div>
-        <div class="eyebrow">Payroll workflow</div>
+        <div class="eyebrow">{{ eyebrow }}</div>
         <h1>{{ page_title }}</h1>
         <p>{{ page_description }}</p>
       </div>
@@ -111,8 +184,6 @@
 
     {% block content %}{% endblock %}
   </main>
-
-  {% include "_employee_dialog.html" %}
   <script>
     (function initSharedSidebar() {
       document.querySelectorAll("[data-nav-toggle]").forEach((button) => {
@@ -149,6 +220,5 @@
       }
     })();
   </script>
-  <script src="{{ url_for('mzdovy.static', filename='app.js') }}"></script>
 </body>
 </html>
