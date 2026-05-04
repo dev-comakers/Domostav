@@ -102,29 +102,13 @@
       border-radius:0 0 4px 4px;
     }
 
-    /* small notch where saw is cutting */
-    .cut-notch {
-      position: absolute;
-      bottom: 110px;          /* on board top */
-      left: 95px;
-      width: 4px;
-      height: 0;
-      background: var(--bg);
-      border-radius: 1px;
-      z-index: 3;
-      animation: notch 1.8s 0.4s ease-out infinite;
-    }
-    @keyframes notch {
-      0%,100% { height: 0; }
-      50%     { height: 8px; }
-    }
-
     /* ── NAIL on top of board ─────────────────────── */
-    /* nail base on board top: bottom=80+30=110; head top scene_y=420-(110+28)=282 */
+    /* board: left 30, width 280 → center x = 170
+       nail base on board top: bottom=80+30=110          */
     .nail {
       position: absolute;
       bottom: 110px;
-      left: 197px;             /* x-center ≈ 200 */
+      left: 167px;             /* center at 170 = board center */
       width: 6px;
       height: 28px;
       background: linear-gradient(180deg, #d8d8d8, #999);
@@ -149,16 +133,14 @@
 
     /* ════════════════════════════════════════════════
        HAMMER — VERTICAL, hits TOP-DOWN on nail
-       Pivot: top-center of SVG (held at top of handle)
-       SVG 60x140 — handle vertical, head at BOTTOM
-       Pivot scene position = (200, 142)
-       At rotate(0): head bottom-center at scene (200, 282) = NAIL HEAD ✓
+       Pivot: top-center of SVG = scene x:170, y:142
+       At rotate(0): head bottom-center ≈ scene (170, 282) = NAIL HEAD ✓
     ════════════════════════════════════════════════ */
     .hammer {
       position: absolute;
       width: 60px;
       height: 140px;
-      left: 170px;             /* 200 - 30 (half SVG width) */
+      left: 140px;             /* 170 - 30 (half SVG 60px) */
       top: 142px;
       transform-origin: 50% 0%;  /* pivot = top-center of SVG */
       animation: hammer-strike 1.4s cubic-bezier(.55,.05,.3,1) infinite;
@@ -178,10 +160,10 @@
     }
 
     /* ── SPARKS at nail head ─────────────────────── */
-    /* nail head is at scene (200, 282) */
+    /* nail head is at scene (170, 282) */
     .sparks {
       position: absolute;
-      left: 200px;
+      left: 170px;
       top: 282px;
       width: 0; height: 0;
       z-index: 6;
@@ -217,7 +199,7 @@
     /* impact flash on nail head */
     .flash {
       position: absolute;
-      left: 170px; top: 252px;
+      left: 140px; top: 252px;
       width: 60px; height: 60px;
       border-radius: 50%;
       background: radial-gradient(circle, rgba(253,211,77,.6), transparent 70%);
@@ -230,66 +212,6 @@
       4%   { opacity:1; transform:scale(1); }
       28%  { opacity:0; transform:scale(1.5); }
       100% { opacity:0; transform:scale(0); }
-    }
-
-    /* ════════════════════════════════════════════════
-       SAW — REAL 3D PERSPECTIVE
-       Wrapper provides perspective, inner uses rotateX
-       to tilt blade so it visually cuts INTO the board
-    ════════════════════════════════════════════════ */
-    .saw-stage {
-      position: absolute;
-      bottom: 86px;            /* blade at board top */
-      left: 0;
-      width: 220px;
-      height: 80px;
-      perspective: 800px;
-      perspective-origin: 50% 100%;
-      z-index: 1;
-    }
-    .saw-3d {
-      width: 100%;
-      height: 100%;
-      transform-style: preserve-3d;
-      animation: saw-stroke 1.9s ease-in-out infinite;
-    }
-    /* rotateX(50): top edge tilts AWAY from viewer (3D depth)
-       rotateZ(-7): slight angle, like saw is being pushed in
-       translateX/Z: animation back-and-forth */
-    @keyframes saw-stroke {
-      0%   { transform: rotateX(50deg) rotateZ(-7deg) translateX(0); }
-      45%  { transform: rotateX(50deg) rotateZ(-7deg) translateX(46px); }
-      55%  { transform: rotateX(50deg) rotateZ(-7deg) translateX(46px); }
-      100% { transform: rotateX(50deg) rotateZ(-7deg) translateX(0); }
-    }
-    .saw-svg { width: 100%; height: 100%; display: block; overflow: visible; }
-
-    /* sawdust at cut point: scene (95, 305) */
-    .dust {
-      position: absolute;
-      left: 95px; top: 305px;
-      width: 0; height: 0;
-      z-index: 6;
-      pointer-events: none;
-    }
-    .dp {
-      position: absolute;
-      border-radius: 50%;
-      background: #c97b2a;
-      opacity: 0;
-    }
-    .dp:nth-child(1) { width:5px;height:5px; animation:dp 1.9s .35s ease-out infinite; --dx:14px;  --dy:-22px; }
-    .dp:nth-child(2) { width:3px;height:3px; animation:dp 1.9s .42s ease-out infinite; --dx:20px;  --dy:-28px; background:#e0872a; }
-    .dp:nth-child(3) { width:6px;height:6px; animation:dp 1.9s .38s ease-out infinite; --dx:-6px;  --dy:-24px; }
-    .dp:nth-child(4) { width:4px;height:4px; animation:dp 1.9s .44s ease-out infinite; --dx:24px;  --dy:-14px; background:#b06018; }
-    .dp:nth-child(5) { width:3px;height:3px; animation:dp 1.9s .40s ease-out infinite; --dx:-12px; --dy:-18px; }
-    .dp:nth-child(6) { width:5px;height:5px; animation:dp 1.9s .46s ease-out infinite; --dx:8px;   --dy:-32px; background:#d07822; }
-    .dp:nth-child(7) { width:3px;height:3px; animation:dp 1.9s .39s ease-out infinite; --dx:-18px; --dy:-22px; }
-    @keyframes dp {
-      0%  { opacity:0; transform:translate(0,0) scale(1); }
-      8%  { opacity:1; }
-      55% { opacity:.7; transform:translate(var(--dx),var(--dy)) scale(.6); }
-      100%{ opacity:0; transform:translate(calc(var(--dx)*.9),calc(var(--dy)*1.8+16px)) scale(.2); }
     }
 
     /* ════════════════════════════════════════════════
@@ -379,83 +301,8 @@
     <!-- ═══════════ SCENE ═══════════ -->
     <div class="scene-col">
 
-      <!-- board (the wood being worked) -->
+      <!-- board -->
       <div class="board"></div>
-      <div class="cut-notch"></div>
-
-      <!-- SAW with REAL 3D PERSPECTIVE TRANSFORM -->
-      <div class="saw-stage">
-        <div class="saw-3d">
-          <svg class="saw-svg" viewBox="0 0 240 80" fill="none">
-            <defs>
-              <linearGradient id="bladeGrad" x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0"   stop-color="#dcdce8"/>
-                <stop offset=".5"  stop-color="#b8b8c8"/>
-                <stop offset="1"   stop-color="#8e8ea0"/>
-              </linearGradient>
-              <linearGradient id="handleGrad" x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0" stop-color="#a06030"/>
-                <stop offset="1" stop-color="#5a3210"/>
-              </linearGradient>
-            </defs>
-
-            <!-- BLADE main body — tapers toward tip -->
-            <path d="M 8 22 L 178 28 L 184 38 L 184 48 L 178 52 L 8 50 Z"
-                  fill="url(#bladeGrad)" stroke="#666678" stroke-width=".5"/>
-            <!-- top sheen on blade -->
-            <path d="M 8 22 L 178 28 L 178 32 L 8 26 Z" fill="rgba(255,255,255,.32)"/>
-            <!-- bevel mid-line -->
-            <line x1="10" y1="36" x2="180" y2="40" stroke="rgba(255,255,255,.18)" stroke-width="1"/>
-
-            <!-- TEETH on bottom edge — sharp triangles -->
-            <path d="
-              M 10 50 L 14 60 L 18 50
-              L 22 60 L 26 50
-              L 30 60 L 34 50
-              L 38 60 L 42 50
-              L 46 60 L 50 50
-              L 54 60 L 58 50
-              L 62 60 L 66 50
-              L 70 60 L 74 50
-              L 78 60 L 82 50
-              L 86 60 L 90 50
-              L 94 60 L 98 50
-              L 102 60 L 106 50
-              L 110 60 L 114 50
-              L 118 60 L 122 50
-              L 126 60 L 130 50
-              L 134 60 L 138 50
-              L 142 60 L 146 50
-              L 150 60 L 154 50
-              L 158 60 L 162 50
-              L 166 60 L 170 50
-              L 174 60 L 178 51"
-              fill="#909098" stroke="#5e5e6c" stroke-width=".7" stroke-linejoin="miter"/>
-
-            <!-- HANDLE — pistol grip on right (3D-ish) -->
-            <path d="M 178 18 Q 210 16 218 30 L 224 46 Q 222 62 208 66 L 192 66 Q 180 64 178 52 L 178 36 Z"
-                  fill="url(#handleGrad)" stroke="#3a2008" stroke-width="1"/>
-            <!-- inner hole (where hand goes) -->
-            <path d="M 192 28 Q 208 28 210 40 Q 210 52 198 56 Q 188 54 188 44 Q 188 32 192 28 Z"
-                  fill="#080c14"/>
-            <!-- handle highlight -->
-            <path d="M 184 22 Q 200 20 206 28 L 208 32 Q 198 28 188 32 Z"
-                  fill="rgba(255,255,255,.18)"/>
-            <!-- rivets -->
-            <circle cx="186" cy="34" r="2.5" fill="#c8a040" stroke="#806020" stroke-width=".7"/>
-            <circle cx="186" cy="34" r="1.2" fill="#f0d070"/>
-            <circle cx="200" cy="60" r="2.5" fill="#c8a040" stroke="#806020" stroke-width=".7"/>
-            <circle cx="200" cy="60" r="1.2" fill="#f0d070"/>
-          </svg>
-        </div>
-      </div>
-
-      <!-- sawdust at cut point -->
-      <div class="dust">
-        <div class="dp"></div><div class="dp"></div><div class="dp"></div>
-        <div class="dp"></div><div class="dp"></div><div class="dp"></div>
-        <div class="dp"></div>
-      </div>
 
       <!-- HAMMER — vertical, hits TOP-DOWN on nail -->
       <div class="hammer">
@@ -497,13 +344,6 @@
           <!-- small face highlight -->
           <rect x="24" y="135" width="12" height="1.5" rx=".7" fill="rgba(255,255,255,.2)"/>
 
-          <!-- CLAW — on the left of head, pointing back-up -->
-          <path d="M 5 102 Q -4 92 0 80 Q 4 72 12 78"
-                stroke="#3e3e50" stroke-width="6" fill="none" stroke-linecap="round"/>
-          <path d="M 5 102 Q -2 94 2 84 Q 6 78 11 82"
-                stroke="#6e6e84" stroke-width="3" fill="none" stroke-linecap="round"/>
-          <!-- claw split -->
-          <path d="M 1 86 L 3 92" stroke="#1a1a26" stroke-width="2" stroke-linecap="round"/>
         </svg>
       </div>
 
