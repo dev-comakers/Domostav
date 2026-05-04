@@ -9,78 +9,159 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="{{ url_for('mzdovy.static', filename='styles.css') }}">
   <style>
-    .admin-grid { display: grid; gap: 20px; }
-    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-    .field label { display: block; margin-bottom: 8px; color: var(--text-muted); font-size: 13px; font-weight: 600; }
+    /* ── base layout ──────────────────────────────────── */
+    .admin-grid { display: grid; gap: 24px; }
+    .form-grid  { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+
+    /* ── field ─────────────────────────────────────────── */
+    .field label { display:block; margin-bottom:8px; color:var(--text-muted); font-size:13px; font-weight:600; }
     .field input, .field select, .field textarea {
-      width: 100%;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      background: var(--surface-2);
-      color: var(--text);
-      padding: 12px 14px;
-      font: inherit;
+      width:100%;
+      border:1px solid var(--border);
+      border-radius:12px;
+      background:var(--surface-2);
+      color:var(--text);
+      padding:12px 14px;
+      font:inherit;
+      font-size:14px;
+      outline:none;
+      transition:border-color .18s, box-shadow .18s;
+      -webkit-appearance:none; appearance:none;
     }
-    .field textarea { min-height: 108px; resize: vertical; }
+    .field input:focus, .field select:focus {
+      border-color:var(--accent);
+      box-shadow:0 0 0 3px var(--accent-glow);
+    }
+    .field textarea { min-height:108px; resize:vertical; }
+
+    /* ── buttons ───────────────────────────────────────── */
     .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      border: 0;
-      border-radius: 14px;
-      padding: 12px 16px;
-      color: white;
-      font: inherit;
-      font-weight: 700;
-      text-decoration: none;
-      cursor: pointer;
+      display:inline-flex; align-items:center; justify-content:center; gap:8px;
+      border:0; border-radius:12px; padding:10px 18px;
+      color:white; font:inherit; font-size:14px; font-weight:700;
+      text-decoration:none; cursor:pointer;
+      transition:opacity .16s, transform .12s, box-shadow .16s;
     }
-    .btn-primary { background: linear-gradient(135deg, #4f8cff, #6ea8ff); }
-    .btn-secondary {
-      border: 1px solid var(--border);
-      background: var(--surface-2);
-      color: var(--text);
+    .btn:hover { opacity:.88; transform:translateY(-1px); }
+    .btn:active { transform:translateY(0); }
+    .btn-primary {
+      background:linear-gradient(135deg,#4f8cff,#6ea8ff);
+      box-shadow:0 4px 14px rgba(79,140,255,.28);
     }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      border-radius: 999px;
-      padding: 6px 10px;
-      background: var(--accent-glow);
-      color: #b9d2ff;
-      font-size: 12px;
-      font-weight: 700;
+    .btn-secondary { border:1px solid var(--border); background:var(--surface-2); color:var(--text); }
+    .btn-danger {
+      background:linear-gradient(135deg,#ef4444,#f87171);
+      box-shadow:0 4px 14px rgba(239,68,68,.26);
+      color:white;
     }
-    .admin-table { width: 100%; border-collapse: collapse; }
-    .admin-table th, .admin-table td { padding: 14px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
-    .admin-table th { color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
-    .row-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-    .row-form input, .row-form select { width: auto; min-width: 140px; }
-    .danger-link {
-      border: 1px solid rgba(251, 113, 133, .28);
-      background: rgba(251, 113, 133, .12);
-      color: #fecdd3;
-    }
+
+    /* ── error ─────────────────────────────────────────── */
     .error {
-      padding: 12px 14px;
-      border: 1px solid rgba(251, 113, 133, .28);
-      border-radius: 14px;
-      background: rgba(251, 113, 133, .12);
-      color: #fecdd3;
+      padding:13px 16px;
+      border:1px solid rgba(251,113,133,.28);
+      border-radius:14px;
+      background:rgba(251,113,133,.10);
+      color:#fecdd3;
     }
-    .role-card-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+
+    /* ── role info cards ───────────────────────────────── */
+    .role-card-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
     .role-card {
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      background: var(--surface-2);
-      padding: 16px;
+      border:1px solid var(--border);
+      border-radius:16px;
+      background:var(--surface-2);
+      padding:18px 16px;
     }
-    .role-card strong { display: block; margin-bottom: 8px; }
-    .role-card span { color: var(--text-muted); font-size: 13px; line-height: 1.5; }
-    @media (max-width: 900px) {
-      .form-grid, .role-card-grid { grid-template-columns: 1fr; }
-      .row-form input, .row-form select { width: 100%; }
+    .role-card strong { display:block; margin-bottom:6px; font-size:14px; }
+    .role-card span { color:var(--text-muted); font-size:13px; line-height:1.5; }
+
+    /* ── badge (role label in header) ──────────────────── */
+    .badge {
+      display:inline-flex; align-items:center;
+      border-radius:999px; padding:4px 10px;
+      font-size:12px; font-weight:700;
+    }
+    .badge--blue   { background:rgba(79,140,255,.18); color:#93c5fd; }
+    .badge--violet { background:rgba(139,92,246,.18); color:#c4b5fd; }
+    .badge--green  { background:rgba(34,197,94,.14);  color:#86efac; }
+    .badge--amber  { background:rgba(245,158,11,.16); color:#fcd34d; }
+    .badge--gray   { background:rgba(148,163,184,.14);color:#cbd5e1; }
+
+    /* ── user cards list ───────────────────────────────── */
+    .user-cards { display:grid; gap:12px; }
+
+    .user-card {
+      background:var(--surface-2);
+      border:1px solid var(--border);
+      border-radius:18px;
+      padding:20px 22px;
+      transition:border-color .2s;
+    }
+    .user-card:hover { border-color:rgba(79,140,255,.22); }
+
+    /* top row: avatar + info + current badge */
+    .user-card-head {
+      display:flex;
+      align-items:center;
+      gap:14px;
+      margin-bottom:18px;
+    }
+    .user-avatar {
+      width:44px; height:44px;
+      border-radius:14px;
+      display:flex; align-items:center; justify-content:center;
+      font-size:16px; font-weight:800; color:#fff;
+      flex-shrink:0;
+    }
+    .user-info { flex:1; min-width:0; }
+    .user-info strong { display:block; font-size:15px; font-weight:700; }
+    .user-info small  { color:var(--text-muted); font-size:13px; }
+
+    .user-status {
+      font-size:12px; font-weight:600; padding:4px 10px;
+      border-radius:999px;
+    }
+    .user-status--active   { background:rgba(34,197,94,.12); color:#86efac; }
+    .user-status--inactive { background:rgba(148,163,184,.12); color:#94a3b8; }
+
+    /* edit form row */
+    .user-edit-row {
+      display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+    }
+    .user-edit-row select,
+    .user-edit-row input[type="password"] {
+      flex:1; min-width:130px;
+      padding:10px 13px;
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:10px;
+      color:var(--text);
+      font:inherit; font-size:13px;
+      outline:none;
+      -webkit-appearance:none; appearance:none;
+      transition:border-color .18s, box-shadow .18s;
+    }
+    .user-edit-row select:focus,
+    .user-edit-row input[type="password"]:focus {
+      border-color:var(--accent);
+      box-shadow:0 0 0 2px var(--accent-glow);
+    }
+    .user-edit-actions {
+      display:flex; gap:8px; align-items:center; margin-top:0;
+    }
+
+    /* divider between edit and delete */
+    .user-card-footer {
+      display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+      margin-top:14px; padding-top:14px;
+      border-top:1px solid var(--border);
+    }
+
+    @media (max-width:900px) {
+      .form-grid, .role-card-grid { grid-template-columns:1fr; }
+      .user-edit-row { flex-direction:column; }
+      .user-edit-row select,
+      .user-edit-row input[type="password"] { width:100%; }
     }
   </style>
 </head>

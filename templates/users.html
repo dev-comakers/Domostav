@@ -1,0 +1,161 @@
+{% extends "app_base.html" %}
+
+{% block content %}
+<div class="admin-grid">
+
+  {% if error %}
+    <div class="error">{{ error }}</div>
+  {% endif %}
+
+  {# ── Role overview ──────────────────────────────── #}
+  <section class="screen-panel">
+    <div class="panel-heading">
+      <div>
+        <span>Přístupy</span>
+        <h2>Role a oprávnění</h2>
+        <p>Každá role určuje, které moduly uživatel vidí.</p>
+      </div>
+    </div>
+    <div class="role-card-grid">
+      <div class="role-card">
+        <strong>Super Admin</strong>
+        <span>Vidí oba moduly a spravuje uživatele.</span>
+      </div>
+      <div class="role-card">
+        <strong>Administrator</strong>
+        <span>Vidí oba moduly a spravuje uživatele.</span>
+      </div>
+      <div class="role-card">
+        <strong>Finance / HR</strong>
+        <span>Vidí pouze Mzdový přehled.</span>
+      </div>
+      <div class="role-card">
+        <strong>Stavba</strong>
+        <span>Vidí pouze kontrolu odpisu podle SPP.</span>
+      </div>
+    </div>
+  </section>
+
+  {# ── Create new user ────────────────────────────── #}
+  <section class="screen-panel">
+    <div class="panel-heading">
+      <div>
+        <span>Správa účtů</span>
+        <h2>Nový uživatel</h2>
+        <p>Administrátor zde založí účet a nastaví roli.</p>
+      </div>
+    </div>
+    <form method="post" action="/users/create" class="admin-grid">
+      <div class="form-grid">
+        <div class="field">
+          <label for="full_name">Jméno a příjmení</label>
+          <input id="full_name" name="full_name" required>
+        </div>
+        <div class="field">
+          <label for="username">Uživatelské jméno</label>
+          <input id="username" name="username" required>
+        </div>
+        <div class="field">
+          <label for="role">Role</label>
+          <select id="role" name="role" required>
+            {% for role in roles %}
+              <option value="{{ role.value }}">{{ role.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="password">Dočasné heslo</label>
+          <input id="password" name="password" type="password" required>
+        </div>
+      </div>
+      <div class="panel-actions">
+        <button class="btn btn-primary" type="submit">Vytvořit uživatele</button>
+      </div>
+    </form>
+  </section>
+
+  {# ── Existing accounts ──────────────────────────── #}
+  <section class="screen-panel">
+    <div class="panel-heading">
+      <div>
+        <span>Aktivní databáze</span>
+        <h2>Existující účty</h2>
+        <p>Seznam načtený přímo z databáze.</p>
+      </div>
+    </div>
+
+    <div class="user-cards">
+      {% for user in users %}
+        {# pick avatar colour by role #}
+        {% set avatar_colors = {
+          'super_admin': '#7c3aed',
+          'admin':       '#2563eb',
+          'finance_hr':  '#059669',
+          'stavba':      '#d97706'
+        } %}
+        {% set avatar_bg = avatar_colors.get(user.role, '#4f8cff') %}
+        {% set initials = (user.full_name.split()[0][0] if user.full_name else '?') +
+                          (user.full_name.split()[1][0] if user.full_name.split()|length > 1 else '') %}
+
+        {# badge class by role #}
+        {% set badge_cls = {
+          'super_admin': 'badge--violet',
+          'admin':       'badge--blue',
+          'finance_hr':  'badge--green',
+          'stavba':      'badge--amber'
+        }.get(user.role, 'badge--gray') %}
+
+        <div class="user-card">
+          {# ── header: avatar + name + status ── #}
+          <div class="user-card-head">
+            <div class="user-avatar" style="background:{{ avatar_bg }};">
+              {{ initials | upper }}
+            </div>
+            <div class="user-info">
+              <strong>{{ user.full_name }}</strong>
+              <small>{{ user.username }}</small>
+            </div>
+            <span class="badge {{ badge_cls }}">{{ user.role_label }}</span>
+            <span class="user-status {{ 'user-status--active' if user.is_active else 'user-status--inactive' }}">
+              {{ 'Aktivní' if user.is_active else 'Vypnutý' }}
+            </span>
+          </div>
+
+          {# ── edit form ── #}
+          <form method="post" action="/users/{{ user.id }}/update">
+            <div class="user-edit-row">
+              <select name="role" title="Role">
+                {% for role in roles %}
+                  <option value="{{ role.value }}" {% if role.value == user.role %}selected{% endif %}>
+                    {{ role.label }}
+                  </option>
+                {% endfor %}
+              </select>
+              <select name="is_active" title="Stav">
+                <option value="true"  {% if user.is_active %}selected{% endif %}>Aktivní</option>
+                <option value="false" {% if not user.is_active %}selected{% endif %}>Vypnutý</option>
+              </select>
+              <input name="password" type="password" placeholder="Nové heslo (nepovinné)">
+              <button class="btn btn-primary" type="submit">Uložit</button>
+            </div>
+          </form>
+
+          {# ── delete (only if not yourself) ── #}
+          {% if current_user.id != user.id %}
+            <div class="user-card-footer">
+              <form method="post" action="/users/{{ user.id }}/delete">
+                <button class="btn btn-danger" type="submit"
+                  onclick="return confirm('Opravdu smazat uživatele {{ user.username }}?')">
+                  Smazat účet
+                </button>
+              </form>
+              <small style="color:var(--text-muted)">Tato akce je nevratná.</small>
+            </div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+
+</div>
+{% endblock %}
