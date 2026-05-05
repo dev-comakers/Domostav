@@ -3099,9 +3099,10 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ draft_id: state.draftId }),
       });
+      applyLiveAnalysisToDashboard(data.result);
       renderReview(data.result?.review || null);
       const k = data.result?.kpis || {};
-    setRunStatus(`Kontrola prepocitana. Shoda ${k.matched_percent ?? "-"}%, kriticke ${k.red_flags_percent ?? "-"}%.`);
+      setRunStatus(`Kontrola prepocitana. Shoda ${k.matched_percent ?? "-"}%, kriticke ${k.red_flags_percent ?? "-"}%.`);
     } catch (e) {
       setRunStatus(`Chyba review: ${e.message}`, true);
     } finally {
@@ -3161,6 +3162,36 @@
         </div>
       `;
     }).join("");
+  }
+
+  function applyLiveAnalysisToDashboard(result) {
+    if (!result) return;
+    const summary = result.summary || {};
+    const kpis = result.kpis || {};
+    const total = kpis.total_items ?? summary.total_items;
+    document.getElementById("kpiTotal").textContent = total ?? "-";
+    document.getElementById("kpiOk").textContent = kpis.ok ?? summary.ok ?? "-";
+    document.getElementById("kpiWarn").textContent = kpis.warning ?? summary.warning ?? "-";
+    document.getElementById("kpiRed").textContent = kpis.red_flag ?? summary.red_flag ?? "-";
+    document.getElementById("kpiMatched").textContent = `${kpis.matched_percent ?? "-"}% odpovida`;
+    if (document.getElementById("activeProjectName")) {
+      document.getElementById("activeProjectName").textContent = currentProjectName();
+    }
+    document.getElementById("activeProjectStatus").textContent = "Aktivni";
+    document.getElementById("activeProjectStatus").className = "project-status active";
+    document.getElementById("activeProjectSpp").textContent = result.spp_count_active_month ?? result.spp_count ?? "-";
+    document.getElementById("activeProjectInventory").textContent = result.inventory_count ?? "-";
+    document.getElementById("activeProjectOk").textContent = `${kpis.ok ?? summary.ok ?? "-"} V PORADKU`;
+    document.getElementById("activeProjectWarn").textContent = `${kpis.warning ?? summary.warning ?? "-"} VAR`;
+    document.getElementById("activeProjectRed").textContent = `${kpis.red_flag ?? summary.red_flag ?? "-"} KRIT`;
+    document.getElementById("activeProjectMeta").textContent = "Vysledek prave dokoncene analyzy (historie se aktualizuje po finalizaci).";
+    renderTopAnomalies(summary);
+    renderMatchingMethods(
+      result.method_counts || kpis.method_counts || {},
+      total,
+      kpis.match_breakdown || null,
+      summary
+    );
   }
 
   async function refreshDashboard() {
@@ -3295,8 +3326,15 @@
       if (data.error) throw new Error(data.error);
       state.draftId = data.draft_id || null;
       const k = data.result?.kpis || {};
+      applyLiveAnalysisToDashboard(data.result);
       renderReview(data.result?.review || null);
-      setRunStatus(`Kontrola pripravena. Shoda ${k.matched_percent ?? "-"}%, kriticke ${k.red_flags_percent ?? "-"}. Upravte radky bez shody a potom finalizujte.`);
+      let stalled = "";
+      const sppAll = data.result?.spp_count_all ?? 0;
+      const sppAct = data.result?.spp_count_active_month ?? 0;
+      if (sppAll > 0 && sppAct === 0) {
+        stalled = " Upozorneni: v SPP nebyl nalezen zadny aktivni radek pro tento mesic (0 % i castka) — zkontrolujte vyber mesice a mapovani sloupcu.";
+      }
+      setRunStatus(`Kontrola pripravena. Shoda ${k.matched_percent ?? "-"}%, kriticke ${k.red_flags_percent ?? "-"}.${stalled} Upravte radky bez shody a potom finalizujte.`);
       const panel = document.getElementById("reviewPanel");
       if (panel && panel.classList.contains("show")) {
         panel.scrollIntoView({ behavior: "smooth", block: "start" });

@@ -243,22 +243,34 @@ def _looks_like_month_label(text: str) -> bool:
 def filter_spp_by_month(items: list[SPPItem]) -> list[SPPItem]:
     """Keep only SPP items that have actual work for the period.
 
-    Business rule: active month rows are only those with percent_month > 0.
+    Primary rule when a % column is mapped: keep rows with ``percent_month > 0``.
+
+    If every mapped percent is zero (wrong column, empty % cells or a new file layout)
+    but month money amounts exist in ``total_month``, fall back to ``total_month > 0``.
+    Otherwise a whole project can silently end up with zero active SPP rows and an
+    empty review table in the UI.
     """
-    # Preserve legacy Chirana behavior when percent_month is available:
-    # active row <=> percent_month > 0.
+    if not items:
+        return []
+
     has_percent_data = any(item.percent_month is not None for item in items)
-    result: list[SPPItem] = []
-    for item in items:
-        pct = item.percent_month or 0
-        total_month = item.total_month or 0
-        if has_percent_data:
-            if pct > 0:
-                result.append(item)
-        else:
-            if total_month > 0:
-                result.append(item)
-    return result
+
+    def _active_by_percent(item: SPPItem) -> bool:
+        return (item.percent_month or 0) > 0
+
+    def _active_by_total_month(item: SPPItem) -> bool:
+        return (item.total_month or 0) > 0
+
+    if has_percent_data:
+        by_pct = [item for item in items if _active_by_percent(item)]
+        if by_pct:
+            return by_pct
+        by_tot = [item for item in items if _active_by_total_month(item)]
+        if by_tot:
+            return by_tot
+        return []
+
+    return [item for item in items if _active_by_total_month(item)]
 
 
 def get_spp_preview(
