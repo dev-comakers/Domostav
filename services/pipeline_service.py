@@ -277,7 +277,11 @@ def run_analysis_pipeline(
 
     client = None
     if not no_ai:
-        client = ClaudeClient(api_key=api_key)
+        try:
+            client = ClaudeClient(api_key=api_key)
+        except ValueError:
+            # No API key configured — fall through to deterministic matching
+            pass
 
     spp_mapping = mapping_from_dict(spp_mapping_override) or build_column_mapping(config, "spp")
     inv_mapping = mapping_from_dict(inv_mapping_override) or build_column_mapping(config, "inventory")
