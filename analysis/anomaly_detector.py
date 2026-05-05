@@ -333,8 +333,14 @@ def analyze_spp_centric(
             deviation_pct = abs(delta) / qty_month * 100
 
         if not is_covered:
-            status = AnomalyStatus.RED_FLAG
-            reason = "Nepokryto — žádná položka ze skladu nebyla přiřazena k této práci"
+            if qty_month is not None and qty_month > 0:
+                # We know how much should be there AND nothing was found → real anomaly
+                status = AnomalyStatus.RED_FLAG
+                reason = "Nepokryto — žádná položka ze skladu nebyla přiřazena k této práci"
+            else:
+                # No quantity calculable (service item / equipment / kpl row) → can't verify
+                status = AnomalyStatus.WARNING
+                reason = "Nelze ověřit — plán za měsíc neobsahuje množství (možná služba nebo zařízení bez zásoby)"
         elif deviation_pct is not None:
             if deviation_pct <= tol_ok * 100:
                 status = AnomalyStatus.OK
