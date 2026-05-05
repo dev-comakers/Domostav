@@ -49,9 +49,39 @@ def normalize_name(value: str) -> str:
         return ""
     lowered = display.lower()
     decomposed = unicodedata.normalize("NFKD", lowered)
-    stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+    stripped = "".join(
+        ch
+        for ch in decomposed
+        if not unicodedata.combining(ch) and unicodedata.category(ch) not in {"Cf", "Cc"}
+    )
+    stripped = re.sub(r"[^0-9a-zA-Z\s'-]+", " ", stripped)
     stripped = re.sub(r"\s+", " ", stripped).strip()
     return stripped
+
+
+def normalize_name_variants(value: str) -> set[str]:
+    """Return conservative matching keys for Czech/Ukrainian employee names.
+
+    POHODA exports and the employee seed file are not always consistent about
+    `Surname Name` vs. `Name Surname`. We keep the variants limited to exact and
+    reversed token order so similarly named people are not over-matched.
+    """
+
+    normalized = normalize_name(value)
+    if not normalized:
+        return set()
+    variants = {normalized}
+    parts = normalized.split()
+    if len(parts) >= 2:
+        variants.add(" ".join(reversed(parts)))
+    return variants
+
+
+def normalize_name_token_key(value: str) -> str:
+    normalized = normalize_name(value)
+    if not normalized:
+        return ""
+    return " ".join(sorted(normalized.split()))
 
 
 def parse_money(value: str | None) -> float | None:

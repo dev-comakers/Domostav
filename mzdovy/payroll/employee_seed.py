@@ -6,6 +6,8 @@ from typing import Any, BinaryIO
 
 import openpyxl
 
+from .company_rules import is_domostav_tzb
+
 SKIP_KEYWORDS = (
     "celkem",
     "total",
@@ -146,14 +148,15 @@ def _extract_from_dm_sheet(ws) -> list[dict[str, Any]]:
         project = _clean(row[3] if len(row) > 3 else None)
         odvody_strhavame = _money(row[5] if len(row) > 5 else None)
         mesicni_mzda = _money(row[10] if len(row) > 10 else None)
-        company_code = _clean(row[11] if len(row) > 11 else None) or "DM"
+        company_name = _clean(row[11] if len(row) > 11 else None) or "DOMOSTAV TZB a.s."
+        company_code = "DM" if is_domostav_tzb(company_name, "DM") else _clean(row[11] if len(row) > 11 else None)
         items.append(
             {
                 "full_name": clean_name,
                 "project_name": project,
                 "coordinator_name": None,
                 "company_code": company_code,
-                "company_name": "Domostav",
+                "company_name": company_name,
                 "notes": notes,
                 "odvody_strhavame": odvody_strhavame,
                 "mesicni_mzda": mesicni_mzda,

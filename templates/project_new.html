@@ -1,0 +1,93 @@
+{% extends "app_base.html" %}
+
+{% block content %}
+  <section class="hero-panel">
+    <div class="panel-heading">
+      <div>
+        <span>Modul 1</span>
+        <h2>Nový projekt pro kontrolu SPP</h2>
+        <p>Založte samostatný projekt, aby se analýzy, pravidla a historie nemíchaly s jiným objektem.</p>
+      </div>
+    </div>
+
+    {% if error %}
+      <div class="error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('create_project_page') }}" class="admin-grid">
+      <div class="form-grid">
+        <div class="field">
+          <label for="name">Název projektu</label>
+          <input id="name" name="name" placeholder="Např. BD Makovska, BD Ohrada, Odkolek" required autofocus>
+        </div>
+        <div class="field">
+          <label for="code">Kód projektu</label>
+          <input id="code" name="code" placeholder="Vyplní se automaticky, pokud necháte prázdné">
+        </div>
+        <div class="field" style="grid-column: 1 / -1">
+          <label for="prompt">Poznámka / pravidlo pro projekt</label>
+          <textarea id="prompt" name="prompt" placeholder="Volitelné: specifika objektu, materiálů nebo kontroly."></textarea>
+        </div>
+      </div>
+      <div class="panel-actions">
+        <a class="btn btn-secondary" href="/">Zpět na Modul 1</a>
+        <button class="btn btn-primary" type="submit">Vytvořit projekt</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="screen-panel" style="margin-top:20px">
+    <div class="panel-heading">
+      <div>
+        <span>Portfolio</span>
+        <h2>Správa projektů</h2>
+        <p>Aktivní projekty jsou vidět v Module 1. Archivované zůstávají v historii, ale nemíchají se do běžného výběru.</p>
+      </div>
+    </div>
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Projekt</th>
+          <th>Stav</th>
+          <th>Data</th>
+          <th>Akce</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for project in projects %}
+          {% set total_refs = (project.sessions_count or 0) + (project.drafts_count or 0) + (project.rules_count or 0) %}
+          <tr>
+            <td>
+              <strong>{{ project.name }}</strong><br>
+              <span style="color:var(--text-muted)">{{ project.code }}</span>
+            </td>
+            <td>
+              {% if project.archived_at %}
+                <span class="badge">Archivováno</span>
+              {% else %}
+                <span class="badge">Aktivní</span>
+              {% endif %}
+            </td>
+            <td>{{ total_refs }} položek historie / pravidel</td>
+            <td>
+              <div class="row-form">
+                {% if project.archived_at %}
+                  <form method="post" action="{{ url_for('restore_project_page', project_code=project.code) }}">
+                    <button class="btn btn-secondary" type="submit">Obnovit</button>
+                  </form>
+                {% else %}
+                  <form method="post" action="{{ url_for('archive_project_page', project_code=project.code) }}">
+                    <button class="btn btn-secondary" type="submit">Archivovat</button>
+                  </form>
+                {% endif %}
+                <form method="post" action="{{ url_for('delete_project_page', project_code=project.code) }}">
+                  <button class="btn danger-link" type="submit" onclick="return confirm('Smazat projekt {{ project.name }}? Mazání projde jen u prázdného projektu.')">Smazat prázdný</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

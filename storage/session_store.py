@@ -33,15 +33,74 @@ class SessionStore:
                 VALUES(%s, %s, %s, %s)
                 ON CONFLICT(code) DO UPDATE SET
                     name = EXCLUDED.name,
-                    prompt = CASE WHEN EXCLUDED.prompt <> '' THEN EXCLUDED.prompt ELSE projects.prompt END
+                    prompt = CASE WHEN EXCLUDED.prompt <> '' THEN EXCLUDED.prompt ELSE projects.prompt END,
+                    archived_at = NULL
                 """,
                 (code, name or code.title(), prompt, now),
             )
 
-    def list_projects(self) -> list[dict]:
+    def list_projects(self, include_archived: bool = False) -> list[dict]:
         with get_conn(schema=SCHEMA) as conn, conn.cursor() as cur:
-            cur.execute("SELECT code, name, prompt, created_at FROM projects ORDER BY created_at DESC")
+            where = "" if include_archived else "WHERE p.archived_at IS NULL"
+            cur.execute(
+                f"""
+                SELECT
+                    p.code,
+                    p.name,
+                    p.prompt,
+                    p.created_at,
+                    p.archived_at,
+                    (
+                        SELECT COUNT(*) FROM sessions s
+                        WHERE s.project_code = p.code
+                    ) AS sessions_count,
+                    (
+                        SELECT COUNT(*) FROM analysis_drafts d
+                        WHERE d.project_code = p.code
+                    ) AS drafts_count,
+                    (
+                        SELECT COUNT(*) FROM rules_registry r
+                        WHERE r.scope_type = 'project' AND r.scope_value = p.code
+                    ) AS rules_count
+                FROM projects p
+                {where}
+                ORDER BY p.archived_at IS NOT NULL, p.created_at DESC
+                """
+            )
             return [dict(r) for r in cur.fetchall()]
+
+    def archive_project(self, code: str) -> None:
+        with get_conn(schema=SCHEMA) as conn, conn.cursor() as cur:
+            cur.execute(
+                "UPDATE projects SET archived_at = NOW()::text WHERE code = %s",
+                (code,),
+            )
+
+    def restore_project(self, code: str) -> None:
+        with get_conn(schema=SCHEMA) as conn, conn.cursor() as cur:
+            cur.execute("UPDATE projects SET archived_at = NULL WHERE code = %s", (code,))
+
+    def delete_project_if_empty(self, code: str) -> bool:
+        with get_conn(schema=SCHEMA) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    (SELECT COUNT(*) FROM sessions WHERE project_code = %s) +
+                    (SELECT COUNT(*) FROM analysis_drafts WHERE project_code = %s) +
+                    (SELECT COUNT(*) FROM mappings WHERE project_code = %s) +
+                    (SELECT COUNT(*) FROM overrides WHERE project_code = %s) +
+                    (SELECT COUNT(*) FROM rules_versions WHERE project_code = %s) +
+                    (SELECT COUNT(*) FROM rules_registry WHERE scope_type = 'project' AND scope_value = %s) +
+                    (SELECT COUNT(*) FROM scoped_overrides WHERE scope_type = 'project' AND scope_value = %s)
+                    AS references_count
+                """,
+                (code, code, code, code, code, code, code),
+            )
+            references_count = int(cur.fetchone()["references_count"])
+            if references_count:
+                return False
+            cur.execute("DELETE FROM projects WHERE code = %s", (code,))
+            return True
 
     # ---------- Mappings ----------
 

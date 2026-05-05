@@ -10,6 +10,7 @@ from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 
+from auth import require_module
 from flask import (
     Blueprint,
     jsonify,
@@ -41,8 +42,23 @@ _store = PayrollStore()
 _service = PayrollService(_store, UPLOAD_DIR)
 
 
+@blueprint.before_request
+def ensure_module_access():
+    return require_module("mzdovy")
+
+
 def _render_page(template_name: str, **context):
     return render_template(template_name, title=APP_TITLE, app_title=APP_TITLE, **context)
+
+
+def _import_coverage_payload(import_id: int) -> dict:
+    coverage = _store.get_import_file_coverage(import_id)
+    incomplete = [item for item in coverage if item["missing_types"]]
+    return {
+        "coverage": coverage,
+        "export_ready": not incomplete,
+        "incomplete_groups": incomplete,
+    }
 
 
 # ---------- Pages ----------
@@ -155,9 +171,10 @@ def create_import():
     if not files:
         return jsonify({"error": "Nahrajte alespo\u0148 jeden HTML soubor."}), 400
     try:
-        import_id = _service.import_html_files(files)
+        result = _service.import_html_files(files)
     except Exception as exc:
         return jsonify({"error": f"Nepoda\u0159ilo se zpracovat soubory: {exc}"}), 400
+    import_id = int(result["import_id"])
     summary = _store.get_import_summary(import_id)
     preview_rows = _store.list_preview_rows(import_id)
     return jsonify(
@@ -165,6 +182,9 @@ def create_import():
             "import_id": import_id,
             "summary": summary.model_dump() if summary else None,
             "preview_rows": preview_rows,
+            "processed_files": result.get("processed_files", []),
+            "skipped_files": result.get("skipped_files", []),
+            **_import_coverage_payload(import_id),
         }
     )
 
@@ -178,6 +198,7 @@ def get_preview(import_id: int):
         {
             "summary": summary.model_dump(),
             "preview_rows": _store.list_preview_rows(import_id),
+            **_import_coverage_payload(import_id),
         }
     )
 
@@ -193,6 +214,7 @@ def recompute_preview(import_id: int):
         {
             "summary": updated_summary.model_dump() if updated_summary else None,
             "preview_rows": _store.list_preview_rows(import_id),
+            **_import_coverage_payload(import_id),
         }
     )
 
@@ -328,19 +350,48 @@ def create_export(import_id: int):
     preview_rows = _store.list_preview_rows(import_id)
     if not preview_rows:
         return jsonify({"error": "P\u0159ehled je pr\u00e1zdn\u00fd, nen\u00ed co exportovat."}), 400
+    coverage_payload = _import_coverage_payload(import_id)
+    incomplete_groups = coverage_payload["incomplete_groups"]
+    if incomplete_groups:
+        labels = {
+            "prehled_mezd": "P\u0159ehled mezd",
+            "socialka": "Soci\u00e1lka",
+            "zdravotka": "Zdravotka",
+        }
+        details = []
+        for item in incomplete_groups:
+            company_name = item["company_name"] or "Nezn\u00e1m\u00e1 firma"
+            period_name = item["period"] or "Nezn\u00e1m\u00e9 obdob\u00ed"
+            missing = ", ".join(labels.get(code, code) for code in item["missing_types"])
+            details.append(f"{company_name} ({period_name}): chyb\u00ed {missing}")
+        return jsonify(
+            {
+                "error": "Export je zablokovan\u00fd, proto\u017ee import nen\u00ed kompletn\u00ed pro v\u0161echny firmy.",
+                "details": details,
+                **coverage_payload,
+            }
+        ), 400
 
-    from .payroll.exporter import detect_export_variant
+    from .payroll.exporter import is_domostav_row
 
     period = summary.period or datetime.utcnow().strftime("%m/%Y")
     safe_period = period.replace("/", "_")
-    variant = detect_export_variant(preview_rows)
-    slug = "Domostav" if variant == "dm" else "Ostatni_firmy"
-    output_path = EXPORT_DIR / f"Vydvody_po_objektach_{slug}_{safe_period}_{import_id}.xlsx"
-    build_export(preview_rows, str(output_path))
-    _store.save_export_run(import_id, str(output_path))
-    download_urls = {
-        variant: url_for("mzdovy.download_file", filename=output_path.name),
-    }
+    domostav_rows = [row for row in preview_rows if is_domostav_row(row)]
+    other_rows = [row for row in preview_rows if not is_domostav_row(row)]
+
+    download_urls = {}
+    if domostav_rows:
+        domostav_path = EXPORT_DIR / f"Vydvody_po_objektach_Domostav_{safe_period}_{import_id}.xlsx"
+        build_export(domostav_rows, str(domostav_path))
+        _store.save_export_run(import_id, str(domostav_path))
+        download_urls["dm"] = url_for("mzdovy.download_file", filename=domostav_path.name)
+    if other_rows:
+        other_path = EXPORT_DIR / f"Vydvody_po_objektach_Ostatni_firmy_{safe_period}_{import_id}.xlsx"
+        build_export(other_rows, str(other_path))
+        _store.save_export_run(import_id, str(other_path))
+        download_urls["main"] = url_for("mzdovy.download_file", filename=other_path.name)
+
+    variant = "dual" if len(download_urls) == 2 else ("dm" if domostav_rows else "main")
     return jsonify({"download_urls": download_urls, "variant": variant})
 
 

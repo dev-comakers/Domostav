@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title }}</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #0b1020;
+      color: #eef2ff;
+      font-family: Inter, system-ui, sans-serif;
+    }
+    .card {
+      width: min(520px, calc(100vw - 32px));
+      padding: 32px;
+      border-radius: 24px;
+      background: #141b2d;
+      border: 1px solid rgba(255,255,255,.08);
+    }
+    h1 { margin: 0 0 10px; font-size: 30px; }
+    p { margin: 0 0 24px; color: #9aa4bf; line-height: 1.5; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .full { grid-column: 1 / -1; }
+    label { display: block; margin: 0 0 8px; font-size: 14px; color: #cbd5e1; }
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 14px 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.08);
+      background: #0f172a;
+      color: #eef2ff;
+      font-size: 16px;
+    }
+    button {
+      width: 100%;
+      margin-top: 24px;
+      padding: 14px 16px;
+      border: 0;
+      border-radius: 14px;
+      background: #4f8cff;
+      color: white;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .error {
+      margin-top: 16px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: rgba(239, 68, 68, .14);
+      color: #fca5a5;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <form class="card" method="post">
+    <h1>První nastavení přístupu</h1>
+    <p>V platformě zatím není žádný účet. Vytvořte prvního super administrátora, který potom založí ostatní uživatele a role.</p>
+    <div class="grid">
+      <div class="full">
+        <label for="full_name">Jméno a příjmení</label>
+        <input id="full_name" name="full_name" required>
+      </div>
+      <div class="full">
+        <label for="username">Uživatelské jméno</label>
+        <input id="username" name="username" required>
+      </div>
+      <div>
+        <label for="password">Heslo</label>
+        <input id="password" name="password" type="password" required>
+      </div>
+      <div>
+        <label for="password_confirm">Potvrzení hesla</label>
+        <input id="password_confirm" name="password_confirm" type="password" required>
+      </div>
+    </div>
+    <button type="submit">Vytvořit Super Admin účet</button>
+    {% if error %}
+      <div class="error">{{ error }}</div>
+    {% endif %}
+  </form>
+</body>
+</html>

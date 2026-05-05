@@ -14,34 +14,55 @@ class PayrollService:
         self.upload_dir = upload_dir
         self.upload_dir.mkdir(parents=True, exist_ok=True)
 
-    def import_html_files(self, files: list, period: str | None = None) -> int:
+    def import_html_files(self, files: list, period: str | None = None) -> dict[str, object]:
         import_id = self.store.create_import(period or "")
         session_dir = self.upload_dir / f"payroll_{import_id}_{uuid.uuid4().hex[:8]}"
         session_dir.mkdir(parents=True, exist_ok=True)
 
         effective_period = period or ""
+        processed_files: list[dict[str, object]] = []
+        skipped_files: list[dict[str, str]] = []
         for file_storage in files:
             filename = file_storage.filename or f"upload_{uuid.uuid4().hex}.htm"
             saved_path = session_dir / filename
             file_storage.save(saved_path)
-            report_type, company_name, detected_period, rows = parse_report_file(saved_path)
-            parser_mode = rows[0].parser_mode if rows else "regex"
-            file_id = self.store.save_import_file(
-                import_id=import_id,
-                filename=filename,
-                report_type=report_type,
-                company_name=company_name,
-                period=detected_period,
-                parser_mode=parser_mode,
-                saved_path=str(saved_path),
-            )
-            self.store.save_parsed_rows(import_id, file_id, [row.model_dump() for row in rows])
-            effective_period = effective_period or detected_period
+            try:
+                report_type, company_name, detected_period, rows = parse_report_file(saved_path)
+                parser_mode = rows[0].parser_mode if rows else "regex"
+                file_id = self.store.save_import_file(
+                    import_id=import_id,
+                    filename=filename,
+                    report_type=report_type,
+                    company_name=company_name,
+                    period=detected_period,
+                    parser_mode=parser_mode,
+                    saved_path=str(saved_path),
+                )
+                self.store.save_parsed_rows(import_id, file_id, [row.model_dump() for row in rows])
+                effective_period = effective_period or detected_period
+                processed_files.append(
+                    {
+                        "filename": filename,
+                        "report_type": report_type,
+                        "company_name": company_name,
+                        "period": detected_period,
+                        "row_count": len(rows),
+                    }
+                )
+            except Exception as exc:
+                skipped_files.append({"filename": filename, "error": str(exc)})
+
+        if not processed_files:
+            raise ValueError("Žádný z nahraných HTML souborů se nepodařilo zpracovat.")
 
         if effective_period:
             self.store.update_import_period(import_id, effective_period)
         self.store.rebuild_preview_rows(import_id)
-        return import_id
+        return {
+            "import_id": import_id,
+            "processed_files": processed_files,
+            "skipped_files": skipped_files,
+        }
 
     def create_employee_from_preview(
         self,

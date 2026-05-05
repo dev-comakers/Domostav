@@ -8,6 +8,8 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
+from .company_rules import is_domostav_company
+
 
 HEADER_FILL = PatternFill("solid", fgColor="1F2A44")
 HEADER_FONT = Font(color="FFFFFF", bold=True)
@@ -44,8 +46,8 @@ MAIN_HEADERS = [
 ]
 MAIN_WIDTHS = [28, 26, 18, 16, 18, 12, 12, 22, 14, 16, 22]
 
-# DM format — Domostav only. Numbered column B with =B(n-1)+1 formula.
-# No Koordinátor column. Per-row Celkem empty; only group subtotals.
+# DM format — Domostav companies. Numbered column B with =B(n-1)+1 formula.
+# No Koordinátor column. Per-row Celkem mirrors the main sheet formula.
 DM_HEADERS = [
     "",
     "\u010c\u00edslo",
@@ -69,9 +71,7 @@ DM_WIDTHS = [3, 8, 30, 24, 16, 18, 12, 12, 16, 14, 16, 22]
 
 
 def is_domostav_row(row: dict) -> bool:
-    company_code = (row.get("company_code") or "").strip().upper()
-    company_name = (row.get("company_name") or "").strip().lower()
-    return company_code == "DM" or "domostav" in company_name
+    return is_domostav_company(row.get("company_name"), row.get("company_code"))
 
 
 def company_label(row: dict) -> str:
@@ -254,7 +254,7 @@ def _build_dm_sheet(ws, rows: list[dict], period: str) -> None:
             ws.cell(current, 7).value = None  # Bonus 1
             ws.cell(current, 8).value = None  # Bonus 2
             ws.cell(current, 9).value = None  # Na účet
-            ws.cell(current, 10).value = None  # per-row Celkem empty (mirror Svetlana's template)
+            ws.cell(current, 10).value = f"=F{current}+G{current}+H{current}+I{current}"
             mesicni = float(item.get("mesicni_mzda") or 0)
             ws.cell(current, 11).value = mesicni if mesicni > 0 else None
             ws.cell(current, 12).value = company_label(item) or "DOMOSTAV TZB a.s."

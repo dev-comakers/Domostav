@@ -20,8 +20,13 @@ def apply_schemas() -> None:
     """
     with get_conn() as conn:
         with conn.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS auth")
             cur.execute("CREATE SCHEMA IF NOT EXISTS spp")
             cur.execute("CREATE SCHEMA IF NOT EXISTS mzdovy")
+
+    with get_conn(schema="auth") as conn:
+        with conn.cursor() as cur:
+            cur.execute(_read_sql("auth.sql"))
 
     with get_conn(schema="spp") as conn:
         with conn.cursor() as cur:

@@ -52,6 +52,7 @@ def _get_pool() -> ConnectionPool:
                 max_size=10,
                 timeout=10,
                 kwargs={"row_factory": dict_row},
+                check=ConnectionPool.check_connection,
                 open=True,
             )
     return _POOL

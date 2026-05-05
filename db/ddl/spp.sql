@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS projects (
     created_at   TEXT NOT NULL
 );
 
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS archived_at TEXT;
+
 CREATE TABLE IF NOT EXISTS sessions (
     id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     project_code    TEXT NOT NULL,

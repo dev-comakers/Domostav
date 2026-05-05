@@ -3,16 +3,33 @@
 from __future__ import annotations
 
 import importlib
+import hashlib
 import json
 import os
+import re
 import time
 from datetime import datetime
 from pathlib import Path
 import uuid
 
 import openpyxl
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, g, jsonify, redirect, render_template, request, send_from_directory, session, url_for
 
+from auth import (
+    ROLE_DEFINITIONS,
+    authenticate,
+    can_access_module,
+    can_manage_users,
+    current_user,
+    forbidden_response,
+    login_required,
+    login_user,
+    logout_user,
+    require_roles,
+    role_exists,
+    role_label,
+    store as auth_store,
+)
 from config import settings
 from config.settings import DATA_DIR, OUTPUT_DIR, PROJECT_ROOT
 from db import apply_schemas
@@ -30,6 +47,10 @@ app.config["JSON_AS_ASCII"] = False
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024  # 64 MB per upload batch
 app.jinja_env.auto_reload = True
+app.secret_key = (
+    getattr(settings, "APP_SECRET_KEY", "").strip()
+    or hashlib.sha256((os.environ.get("DATABASE_URL") or str(PROJECT_ROOT)).encode("utf-8")).hexdigest()
+)
 
 from mzdovy import blueprint as mzdovy_blueprint
 
@@ -38,6 +59,89 @@ app.register_blueprint(mzdovy_blueprint)
 UPLOAD_DIR = DATA_DIR / "uploads"
 store = SessionStore()
 _DEBUG_LOG_PATH = "/Users/dmytriivezerian/Desktop/Domostav x Fajnwork/.cursor/debug-f07731.log"
+
+DEFAULT_SPP_PROJECTS = [
+    ("bd-makovska", "BD Makovska"),
+    ("bd-ohrada", "BD Ohrada"),
+    ("chirana", "CHIRANA (NOVECON)"),
+    ("odkolek", "Odkolek"),
+    ("rezidence-nad-vltavou", "Rezidence nad Vltavou"),
+]
+
+
+def _ensure_default_spp_projects() -> None:
+    for code, name in DEFAULT_SPP_PROJECTS:
+        store.ensure_project(code, name)
+
+
+_ensure_default_spp_projects()
+
+
+def _project_code_from_name(value: str) -> str:
+    text = value.strip().lower()
+    text = (
+        text.replace("á", "a").replace("č", "c").replace("ď", "d")
+        .replace("é", "e").replace("ě", "e").replace("í", "i")
+        .replace("ň", "n").replace("ó", "o").replace("ř", "r")
+        .replace("š", "s").replace("ť", "t").replace("ú", "u")
+        .replace("ů", "u").replace("ý", "y").replace("ž", "z")
+    )
+    text = re.sub(r"[^a-z0-9]+", "-", text).strip("-")
+    return text or f"projekt-{int(time.time())}"
+
+
+@app.context_processor
+def inject_auth_context():
+    user = current_user()
+    return {
+        "current_user": user,
+        "role_label": role_label,
+        "can_access_spp": can_access_module(user, "spp"),
+        "can_access_mzdovy": can_access_module(user, "mzdovy"),
+        "can_manage_users": can_manage_users(user),
+    }
+
+
+@app.before_request
+def enforce_auth():
+    user = current_user()
+    public_paths = {
+        "/health",
+        "/api/version",
+        "/login",
+        "/logout",
+        "/setup",
+    }
+    if request.path in public_paths or request.path.startswith("/mzdovy/static/"):
+        return None
+    if not auth_store.has_users() and request.path != "/setup":
+        return redirect(url_for("setup_page"))
+    if request.path.startswith("/mzdovy"):
+        return None
+    if request.path == "/users" or request.path.startswith("/users/"):
+        if not user:
+            return redirect(url_for("login_page", next=request.path))
+        if not can_manage_users(user):
+            return render_template("access_denied.html", title="Přístup odepřen", message="Na správu uživatelů nemáte oprávnění."), 403
+        return None
+    if request.path == "/login":
+        return None
+    if request.path.startswith("/api/me"):
+        if not user:
+            return jsonify({"error": "Přihlaste se prosím."}), 401
+        return None
+    if request.path == "/" or request.path.startswith("/api/") or request.path.startswith("/output/"):
+        if not user:
+            return redirect(url_for("login_page", next=request.path)) if not request.path.startswith("/api/") else (jsonify({"error": "Přihlaste se prosím."}), 401)
+        if not can_access_module(user, "spp"):
+            if request.path == "/" and can_access_module(user, "mzdovy"):
+                return redirect(url_for("mzdovy.wizard_new"))
+            return (
+                (jsonify({"error": "Na Modul 1 nemáte přístup."}), 403)
+                if request.path.startswith("/api/")
+                else (render_template("access_denied.html", title="Přístup odepřen", message="Na Modul 1 nemáte přístup."), 403)
+            )
+    return None
 
 
 def _debug_log(hypothesis_id: str, location: str, message: str, data: dict) -> None:
@@ -295,6 +399,289 @@ def _detect_training_file_kind(path: Path, filename: str) -> str:
     except Exception:
         return "unknown"
     return "unknown"
+
+
+def _role_options() -> list[dict[str, str]]:
+    return [{"value": key, "label": value["label"]} for key, value in ROLE_DEFINITIONS.items()]
+
+
+def _safe_next_url_for_user(user: dict[str, object], next_url: str) -> str | None:
+    next_url = (next_url or "").strip()
+    if not next_url.startswith("/") or next_url.startswith("//"):
+        return None
+    if next_url == "/" or next_url.startswith("/api/") or next_url.startswith("/output/"):
+        return next_url if can_access_module(user, "spp") else None
+    if next_url.startswith("/mzdovy"):
+        return next_url if can_access_module(user, "mzdovy") else None
+    if next_url == "/users" or next_url.startswith("/users/"):
+        return next_url if can_manage_users(user) else None
+    return None
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login_page():
+    if not auth_store.has_users():
+        return redirect(url_for("setup_page"))
+    existing_user = current_user()
+    if existing_user:
+        if can_access_module(existing_user, "spp"):
+            return redirect(url_for("root"))
+        if can_access_module(existing_user, "mzdovy"):
+            return redirect(url_for("mzdovy.wizard_new"))
+        return redirect(url_for("logout_page"))
+    error = ""
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        password = request.form.get("password") or ""
+        user = authenticate(username, password)
+        if user:
+            login_user(user)
+            next_url = _safe_next_url_for_user(user, request.args.get("next", ""))
+            if next_url:
+                return redirect(next_url)
+            if can_access_module(user, "spp"):
+                return redirect(url_for("root"))
+            if can_access_module(user, "mzdovy"):
+                return redirect(url_for("mzdovy.wizard_new"))
+            error = "Účet nemá přiřazený žádný dostupný modul."
+        else:
+            error = "Neplatné přihlašovací údaje."
+    return render_template("login.html", title="Přihlášení", error=error)
+
+
+@app.route("/setup", methods=["GET", "POST"])
+def setup_page():
+    if auth_store.has_users():
+        return redirect(url_for("login_page"))
+    error = ""
+    if request.method == "POST":
+        full_name = (request.form.get("full_name") or "").strip()
+        username = (request.form.get("username") or "").strip()
+        password = request.form.get("password") or ""
+        password_confirm = request.form.get("password_confirm") or ""
+        if not full_name or not username or not password:
+            error = "Vyplňte prosím všechna pole."
+        elif password != password_confirm:
+            error = "Hesla se neshodují."
+        elif len(password) < 8:
+            error = "Heslo musí mít alespoň 8 znaků."
+        else:
+            try:
+                auth_store.create_user(
+                    username=username,
+                    full_name=full_name,
+                    password=password,
+                    role="super_admin",
+                )
+                user = authenticate(username, password)
+                if user:
+                    login_user(user)
+                return redirect(url_for("users_page"))
+            except Exception:
+                error = "Tento uživatel už pravděpodobně existuje."
+    return render_template("setup.html", title="První nastavení", error=error)
+
+
+@app.get("/logout")
+def logout_page():
+    logout_user()
+    return redirect(url_for("login_page"))
+
+
+@app.get("/api/me")
+def api_me():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Přihlaste se prosím."}), 401
+    return jsonify(
+        {
+            "user": {
+                "id": user["id"],
+                "username": user["username"],
+                "full_name": user["full_name"],
+                "role": user["role"],
+                "role_label": role_label(user["role"]),
+                "modules": sorted(ROLE_DEFINITIONS[user["role"]]["modules"]),
+                "can_manage_users": can_manage_users(user),
+            }
+        }
+    )
+
+
+@app.get("/users")
+@require_roles("super_admin", "admin")
+def users_page():
+    users = auth_store.list_users()
+    for user in users:
+        user["role_label"] = role_label(user.get("role"))
+    return render_template(
+        "users.html",
+        title="Uživatelé",
+        eyebrow="Administrace",
+        page_title="Uživatelé platformy",
+        page_description="Správa účtů, rolí a přístupů ve stejném prostředí jako oba moduly.",
+        active_page="users",
+        users=users,
+        roles=_role_options(),
+        error="",
+    )
+
+
+@app.post("/users/create")
+@require_roles("super_admin", "admin")
+def create_user_page():
+    full_name = (request.form.get("full_name") or "").strip()
+    username = (request.form.get("username") or "").strip()
+    password = request.form.get("password") or ""
+    role = (request.form.get("role") or "").strip()
+    error = ""
+    if not full_name or not username or not password:
+        error = "Vyplňte prosím všechna pole pro nového uživatele."
+    elif len(password) < 8:
+        error = "Dočasné heslo musí mít alespoň 8 znaků."
+    elif not role_exists(role):
+        error = "Vyberte prosím platnou roli."
+    else:
+        try:
+            auth_store.create_user(username=username, full_name=full_name, password=password, role=role)
+            return redirect(url_for("users_page"))
+        except Exception:
+            error = "Tento uživatel už pravděpodobně existuje."
+    users = auth_store.list_users()
+    for user in users:
+        user["role_label"] = role_label(user.get("role"))
+    return render_template(
+        "users.html",
+        title="Uživatelé",
+        eyebrow="Administrace",
+        page_title="Uživatelé platformy",
+        page_description="Správa účtů, rolí a přístupů ve stejném prostředí jako oba moduly.",
+        active_page="users",
+        users=users,
+        roles=_role_options(),
+        error=error,
+    ), 400
+
+
+@app.post("/users/<int:user_id>/update")
+@require_roles("super_admin", "admin")
+def update_user_page(user_id: int):
+    role = (request.form.get("role") or "").strip()
+    is_active = (request.form.get("is_active") or "").strip().lower() == "true"
+    password = (request.form.get("password") or "").strip()
+    if not role_exists(role):
+        return render_template(
+            "access_denied.html",
+            title="Neplatná role",
+            message="Vybraná role není platná.",
+        ), 400
+    auth_store.update_user(user_id, role=role, is_active=is_active, password=password or None)
+    if session.get("auth_user_id") == user_id and not is_active:
+        logout_user()
+        return redirect(url_for("login_page"))
+    return redirect(url_for("users_page"))
+
+
+@app.post("/users/<int:user_id>/delete")
+@require_roles("super_admin", "admin")
+def delete_user_page(user_id: int):
+    if session.get("auth_user_id") == user_id:
+        users = auth_store.list_users()
+        for user in users:
+            user["role_label"] = role_label(user.get("role"))
+        return render_template(
+            "users.html",
+            title="Uživatelé",
+            eyebrow="Administrace",
+            page_title="Uživatelé platformy",
+            page_description="Správa účtů, rolí a přístupů ve stejném prostředí jako oba moduly.",
+            active_page="users",
+            users=users,
+            roles=_role_options(),
+            error="Vlastní účet nelze smazat během aktivní relace.",
+        ), 400
+    auth_store.delete_user(user_id)
+    return redirect(url_for("users_page"))
+
+
+@app.get("/projects/new")
+@login_required
+def new_project_page():
+    if not can_access_module(current_user(), "spp"):
+        return forbidden_response("Na zakládání SPP projektů nemáte přístup.")
+    projects = store.list_projects(include_archived=True)
+    return render_template(
+        "project_new.html",
+        title="Nový projekt",
+        eyebrow="Projekty",
+        page_title="Nový projekt",
+        page_description="Samostatný objekt pro Module 1, jeho pravidla, analýzy a historii.",
+        active_page="project_new",
+        projects=projects,
+        error="",
+    )
+
+
+@app.post("/projects/create")
+@login_required
+def create_project_page():
+    if not can_access_module(current_user(), "spp"):
+        return forbidden_response("Na zakládání SPP projektů nemáte přístup.")
+    name = (request.form.get("name") or "").strip()
+    code = (request.form.get("code") or "").strip().lower()
+    prompt = request.form.get("prompt") or ""
+    if not name:
+        return render_template(
+            "project_new.html",
+            title="Nový projekt",
+            eyebrow="Projekty",
+            page_title="Nový projekt",
+            page_description="Samostatný objekt pro Module 1, jeho pravidla, analýzy a historii.",
+            active_page="project_new",
+            projects=store.list_projects(include_archived=True),
+            error="Zadejte prosím název projektu.",
+        ), 400
+    store.ensure_project(code or _project_code_from_name(name), name, prompt)
+    return redirect(url_for("root"))
+
+
+@app.post("/projects/<project_code>/archive")
+@login_required
+def archive_project_page(project_code: str):
+    if not can_access_module(current_user(), "spp"):
+        return forbidden_response("Na správu SPP projektů nemáte přístup.")
+    store.archive_project(project_code)
+    return redirect(url_for("new_project_page"))
+
+
+@app.post("/projects/<project_code>/restore")
+@login_required
+def restore_project_page(project_code: str):
+    if not can_access_module(current_user(), "spp"):
+        return forbidden_response("Na správu SPP projektů nemáte přístup.")
+    store.restore_project(project_code)
+    return redirect(url_for("new_project_page"))
+
+
+@app.post("/projects/<project_code>/delete")
+@login_required
+def delete_project_page(project_code: str):
+    if not can_access_module(current_user(), "spp"):
+        return forbidden_response("Na správu SPP projektů nemáte přístup.")
+    deleted = store.delete_project_if_empty(project_code)
+    if deleted:
+        return redirect(url_for("new_project_page"))
+    projects = store.list_projects(include_archived=True)
+    return render_template(
+        "project_new.html",
+        title="Nový projekt",
+        eyebrow="Projekty",
+        page_title="Nový projekt",
+        page_description="Samostatný objekt pro Module 1, jeho pravidla, analýzy a historii.",
+        active_page="project_new",
+        projects=projects,
+        error="Projekt už má analýzy nebo pravidla. Kvůli historii jej archivujte místo mazání.",
+    ), 400
 
 
 @app.get("/")
@@ -895,5 +1282,4 @@ def get_output(filename: str):
 
 if __name__ == "__main__":
     _ensure_dirs()
-    store.ensure_project("chirana", "Chirana")
     app.run(host="127.0.0.1", port=8000, debug=False, threaded=True)

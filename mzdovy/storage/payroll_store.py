@@ -13,7 +13,8 @@ from typing import Any
 
 from db import get_conn
 
-from ..payroll.html_utils import normalize_name
+from ..payroll.company_rules import companies_compatible
+from ..payroll.html_utils import normalize_name, normalize_name_token_key, normalize_name_variants
 from ..payroll.models import EmployeeInput, ImportSummary, utc_now
 
 
@@ -27,6 +28,93 @@ class PayrollStore:
         self._migrate_to_current_matching_scheme()
 
     # ---------- Internal helpers ----------
+
+    @staticmethod
+    def _metadata_key(value: str) -> str:
+        normalized = " ".join((value or "").strip().lower().split())
+        return normalized.replace(" /", "/").replace("/ ", "/")
+
+    @classmethod
+    def _collapse_metadata_values(cls, rows: list[dict[str, Any]]) -> list[str]:
+        grouped: dict[str, list[tuple[str, int]]] = defaultdict(list)
+        for row in rows:
+            value = str(row["value"] or "").strip()
+            if not value:
+                continue
+            grouped[cls._metadata_key(value)].append((value, int(row.get("n") or 0)))
+
+        items: list[tuple[str, str]] = []
+        for key, variants in grouped.items():
+            canonical = sorted(
+                variants,
+                key=lambda item: (-item[1], item[0].lower(), item[0]),
+            )[0][0]
+            items.append((key, canonical))
+
+        return [value for _key, value in sorted(items, key=lambda item: (item[0], item[1].lower(), item[1]))]
+
+    @staticmethod
+    def _build_employee_match_indexes(employee_rows: list[dict[str, Any]]) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+        exact: dict[str, dict[str, Any]] = {}
+        variant_candidates: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        token_candidates: dict[str, list[dict[str, Any]]] = defaultdict(list)
+
+        for employee in employee_rows:
+            normalized = str(employee.get("normalized_name") or "")
+            exact[normalized] = employee
+            for key in normalize_name_variants(str(employee.get("full_name") or normalized)):
+                variant_candidates[key].append(employee)
+            token_key = normalize_name_token_key(str(employee.get("full_name") or normalized))
+            if token_key:
+                token_candidates[token_key].append(employee)
+
+        unique_variants = {
+            key: candidates[0]
+            for key, candidates in variant_candidates.items()
+            if len({candidate["id"] for candidate in candidates}) == 1
+        }
+        unique_token_keys = {
+            key: candidates[0]
+            for key, candidates in token_candidates.items()
+            if len({candidate["id"] for candidate in candidates}) == 1
+        }
+        return exact, unique_variants, unique_token_keys
+
+    @staticmethod
+    def _find_employee_match(
+        normalized_name: str,
+        display_name: str,
+        exact: dict[str, dict[str, Any]],
+        variants: dict[str, dict[str, Any]],
+        token_keys: dict[str, dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        if normalized_name in exact:
+            return exact[normalized_name]
+        for key in normalize_name_variants(display_name):
+            employee = variants.get(key)
+            if employee:
+                return employee
+        token_key = normalize_name_token_key(display_name)
+        return token_keys.get(token_key) if token_key else None
+
+    @staticmethod
+    def _is_zero_dpp_like_row(report_types: set[str], gross_wage: float, social_employee: float, social_employer: float, health_employee: float, health_employer: float, tax_amount: float, srazky: float, zaloha: float) -> bool:
+        if report_types != {"prehled_mezd"}:
+            return False
+        if gross_wage <= 0:
+            return False
+        return all(
+            abs(value) < 0.01
+            for value in (
+                social_employee,
+                social_employer,
+                health_employee,
+                health_employer,
+                tax_amount,
+                srazky,
+                zaloha,
+            )
+        )
 
     def _migrate_to_current_matching_scheme(self) -> None:
         from ..payroll.employee_seed import clean_seed_name
@@ -174,26 +262,29 @@ class PayrollStore:
     def list_employee_metadata(self) -> dict[str, list[str]]:
         with get_conn(schema=SCHEMA) as conn, conn.cursor() as cur:
             cur.execute(
-                "SELECT DISTINCT project_name AS value, LOWER(project_name) AS sort_key "
+                "SELECT project_name AS value, COUNT(*) AS n "
                 "FROM payroll_employees "
                 "WHERE project_name IS NOT NULL AND TRIM(project_name) <> '' "
-                "ORDER BY sort_key"
+                "GROUP BY project_name "
+                "ORDER BY LOWER(project_name), project_name"
             )
-            projects = [row["value"] for row in cur.fetchall()]
+            projects = self._collapse_metadata_values([dict(row) for row in cur.fetchall()])
             cur.execute(
-                "SELECT DISTINCT coordinator_name AS value, LOWER(coordinator_name) AS sort_key "
+                "SELECT coordinator_name AS value, COUNT(*) AS n "
                 "FROM payroll_employees "
                 "WHERE coordinator_name IS NOT NULL AND TRIM(coordinator_name) <> '' "
-                "ORDER BY sort_key"
+                "GROUP BY coordinator_name "
+                "ORDER BY LOWER(coordinator_name), coordinator_name"
             )
-            coordinators = [row["value"] for row in cur.fetchall()]
+            coordinators = self._collapse_metadata_values([dict(row) for row in cur.fetchall()])
             cur.execute(
-                "SELECT DISTINCT company_name AS value, LOWER(company_name) AS sort_key "
+                "SELECT company_name AS value, COUNT(*) AS n "
                 "FROM payroll_employees "
                 "WHERE company_name IS NOT NULL AND TRIM(company_name) <> '' "
-                "ORDER BY sort_key"
+                "GROUP BY company_name "
+                "ORDER BY LOWER(company_name), company_name"
             )
-            companies = [row["value"] for row in cur.fetchall()]
+            companies = self._collapse_metadata_values([dict(row) for row in cur.fetchall()])
         return {"projects": projects, "coordinators": coordinators, "companies": companies}
 
     def create_employee(self, data: EmployeeInput) -> int:
@@ -389,15 +480,22 @@ class PayrollStore:
             )
             parsed_rows = cur.fetchall()
             cur.execute("SELECT * FROM payroll_employees")
-            employees = {row["normalized_name"]: dict(row) for row in cur.fetchall()}
+            employee_rows = [dict(row) for row in cur.fetchall()]
+            exact_employees, employee_variants, employee_token_keys = self._build_employee_match_indexes(employee_rows)
             cur.execute("DELETE FROM payroll_preview_rows WHERE import_id = %s", (import_id,))
 
-            grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+            grouped: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
             for row in parsed_rows:
-                grouped[row["normalized_name"]].append(dict(row))
+                group_key = (
+                    str(row["normalized_name"] or ""),
+                    str(row["company_name"] or ""),
+                    str(row["period"] or ""),
+                )
+                grouped[group_key].append(dict(row))
 
-            for normalized_name, group_rows in grouped.items():
+            for (_normalized_name, _company_name, _period), group_rows in grouped.items():
                 first = group_rows[0]
+                normalized_name = first["normalized_name"]
                 display_name = first["employee_name"]
                 company_name = first["company_name"]
                 period = first["period"]
@@ -449,6 +547,19 @@ class PayrollStore:
                     default=0,
                 )
 
+                if self._is_zero_dpp_like_row(
+                    report_types,
+                    gross_wage,
+                    social_employee,
+                    social_employer,
+                    health_employee,
+                    health_employer,
+                    tax_amount,
+                    srazky,
+                    zaloha,
+                ):
+                    continue
+
                 warnings: list[str] = []
                 if "prehled_mezd" not in report_types:
                     warnings.append("Chyb\u00ed p\u0159ehled mezd")
@@ -459,7 +570,19 @@ class PayrollStore:
                 if gross_wage > 0 and tax_amount == 0 and ("socialka" not in report_types or "zdravotka" not in report_types):
                     warnings.append("Chyb\u00ed da\u0148")
 
-                employee = employees.get(normalized_name)
+                employee = self._find_employee_match(
+                    normalized_name,
+                    display_name,
+                    exact_employees,
+                    employee_variants,
+                    employee_token_keys,
+                )
+                if employee and not companies_compatible(
+                    company_name,
+                    employee.get("company_name"),
+                    employee.get("company_code"),
+                ):
+                    employee = None
                 match_status = "matched" if employee else "missing"
                 employee_id = employee["id"] if employee else None
                 project_name = employee["project_name"] if employee else None
@@ -473,7 +596,12 @@ class PayrollStore:
                     + tax_amount
                 )
 
-                odvody_strhavame = float(employee["odvody_strhavame"] or 0) if employee else 0.0
+                stored_odvody_strhavame = float(employee["odvody_strhavame"] or 0) if employee else 0.0
+                odvody_strhavame = (
+                    stored_odvody_strhavame
+                    if stored_odvody_strhavame > 0
+                    else (odvody_platime if employee else 0.0)
+                )
 
                 deductions = social_employee + health_employee + tax_amount + srazky + zaloha
                 control_sum_parsed = gross_wage - deductions
@@ -583,3 +711,40 @@ class PayrollStore:
         if not row:
             return None
         return ImportSummary(**dict(row))
+
+    def get_import_file_coverage(self, import_id: int) -> list[dict[str, Any]]:
+        required = {"prehled_mezd", "socialka", "zdravotka"}
+        with get_conn(schema=SCHEMA) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT company_name, period, report_type, COUNT(*) AS file_count
+                FROM payroll_import_files
+                WHERE import_id = %s
+                GROUP BY company_name, period, report_type
+                ORDER BY company_name, period, report_type
+                """,
+                (import_id,),
+            )
+            rows = cur.fetchall()
+
+        grouped: dict[tuple[str, str], set[str]] = defaultdict(set)
+        for row in rows:
+            group_key = (
+                str(row["company_name"] or "").strip(),
+                str(row["period"] or "").strip(),
+            )
+            grouped[group_key].add(str(row["report_type"] or "").strip())
+
+        coverage: list[dict[str, Any]] = []
+        for (company_name, period), report_types in sorted(grouped.items()):
+            missing_types = sorted(required - report_types)
+            coverage.append(
+                {
+                    "company_name": company_name,
+                    "period": period,
+                    "report_types": sorted(report_types),
+                    "missing_types": missing_types,
+                    "is_complete": not missing_types,
+                }
+            )
+        return coverage

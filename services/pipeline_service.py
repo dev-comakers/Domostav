@@ -14,12 +14,12 @@ from urllib import request
 import yaml
 from rapidfuzz import fuzz, process
 
-from analysis.anomaly_detector import analyze_all, get_summary
+from analysis.anomaly_detector import analyze_all, analyze_spp_centric, get_summary
 from analysis.nf45_validator import validate_against_nf45
 from config.settings import CONFIG_DIR, DEFAULT_INVENTORY_DATA_START, OUTPUT_DIR
 from llm.client import ClaudeClient
 from matching.material_matcher import match_all
-from models import AnomalyStatus, ColumnMapping, MatchMethod, MatchResult, MaterialCategory
+from models import AnomalyStatus, ColumnMapping, MatchMethod, MatchResult, MaterialCategory, SPPCoverageRec
 from output.excel_generator import generate_output
 from parsers.inventory_parser import parse_inventory
 from parsers.mapping_engine import auto_detect_mapping
@@ -363,7 +363,13 @@ def run_analysis_pipeline(
         matches,
         rules=config.get("rules", {}),
     )
-    summary = get_summary(recommendations, inventory_items)
+    spp_coverage_recs = analyze_spp_centric(
+        spp_items,
+        inventory_items,
+        matches,
+        rules=config.get("rules", {}),
+    )
+    summary = get_summary(recommendations, inventory_items, spp_coverage_recs=spp_coverage_recs)
     rec_by_row = {rec.inventory_row: rec for rec in recommendations}
     kpi_rows = {
         inv.row
@@ -527,7 +533,7 @@ def run_analysis_pipeline(
             "not_covered": sum(1 for c in spp_coverage if not c["covered"]),
             "by_sheet": _coverage_by_sheet(spp_coverage),
         },
-        "review": _build_review_payload(inventory_items, recommendations, spp_items),
+        "review": _build_review_payload(inventory_items, recommendations, spp_items, spp_coverage_recs),
     }
     if include_export_artifacts:
         result["export_artifacts"] = {
@@ -634,54 +640,81 @@ def _coverage_by_sheet(coverage: list[dict]) -> dict[str, dict[str, int]]:
     return summary
 
 
-def _build_review_payload(inventory_items: list, recommendations: list, spp_items: list) -> dict[str, Any]:
-    inv_by_row = {i.row: i for i in inventory_items}
+def _build_review_payload(
+    inventory_items: list,
+    recommendations: list,
+    spp_items: list,
+    spp_coverage_recs: list | None = None,
+) -> dict[str, Any]:
+    """Build the review payload for the frontend.
+
+    Primary view is SPP-centric (Artem's logic):
+    - Each row represents ONE active SPP work item.
+    - RED_FLAG rows = SPP items with no inventory coverage (the "lof").
+    - Inventory items with no active-SPP link are not flagged at all.
+    """
     review_rows: list[dict[str, Any]] = []
     unmatched_count = 0
-    out_of_scope_count = 0
 
-    for rec in recommendations:
-        inv = inv_by_row.get(rec.inventory_row)
-        article = (inv.article or "").strip().upper() if inv and inv.article else ""
-        item_key = f"ARTICLE:{article}" if article else f"ROW:{rec.inventory_row}"
-        is_out_of_scope = getattr(rec.status, "value", rec.status) == "OUT_OF_SCOPE"
-        is_unmatched = rec.expected_writeoff is None
-        is_anomaly = getattr(rec.status, "value", rec.status) not in {"OK", "OUT_OF_SCOPE"}
-        if is_out_of_scope:
-            out_of_scope_count += 1
-            continue
+    for rec in (spp_coverage_recs or []):
+        status_val = getattr(rec.status, "value", rec.status)
+        is_unmatched = len(rec.covered_inv_rows) == 0
+        is_anomaly = status_val not in {"OK"}
+
         if is_unmatched:
             unmatched_count += 1
-        if not (is_unmatched or is_anomaly):
+
+        # Only include problematic rows in the review table
+        if not is_anomaly:
             continue
 
         review_rows.append(
             {
-                "item_key": item_key,
-                "inventory_row": rec.inventory_row,
-                "article": article or None,
-                "name": rec.inventory_name,
-                "inventory_unit": inv.unit if inv else None,
-                "actual_deviation": inv.deviation if inv else None,
-                "price": inv.price if inv else None,
-                "expected_writeoff": rec.expected_writeoff,
-                "spp_reference": rec.spp_reference,
-                "spp_source": _extract_spp_source_label(rec.spp_reference),
+                # SPP identity
+                "spp_row": rec.spp_row,
+                "spp_source_row": rec.spp_source_row,
+                "spp_sheet": rec.spp_sheet,
+                "name": rec.spp_name,          # unified field for the table
+                "spp_unit": rec.spp_unit,
+                "spp_qty_month": rec.spp_qty_month,
+                "spp_total_month": rec.spp_total_month,
+                # Coverage
+                "covered_items": rec.covered_inv_names,
+                "covered_count": len(rec.covered_inv_rows),
+                "total_inv_deviation": rec.total_inv_deviation,
+                "delta": rec.delta,
+                # Status
+                "status": status_val,
                 "reason": rec.reason,
-                "status": getattr(rec.status, "value", rec.status),
-                "method": getattr(rec.match_method, "value", rec.match_method),
                 "deviation_percent": rec.deviation_percent,
-                "category": (inv.category.value if inv else None),
                 "is_unmatched": is_unmatched,
                 "is_anomaly": is_anomaly,
-                "is_out_of_scope": False,
-                "money_impact": round(
-                    abs(float(inv.deviation or 0.0)) * abs(float(inv.price or 0.0)),
-                    2,
-                ) if inv else 0.0,
+                "money_impact": round(abs(float(rec.delta or 0.0)) * abs(float(rec.spp_total_month or 0.0)), 2),
+                # Legacy compat keys (used by some JS filters/columns)
+                "item_key": f"SPP:{rec.spp_row}",
+                "inventory_row": None,
             }
         )
 
+    # Sort: uncovered first, then by sheet, then by source row
+    review_rows.sort(
+        key=lambda item: (
+            0 if item["is_unmatched"] else 1,
+            item.get("spp_sheet") or "",
+            item.get("spp_source_row") or 0,
+        ),
+    )
+
+    review_top_anomalies = [item for item in review_rows if item["is_anomaly"]]
+    review_top_anomalies.sort(
+        key=lambda item: (
+            abs(float(item.get("money_impact") or 0.0)),
+            abs(float(item.get("deviation_percent") or 0.0)),
+        ),
+        reverse=True,
+    )
+
+    # spp_options is kept for the manual SPP selector in the UI (unchanged)
     spp_options: list[dict[str, Any]] = []
     for spp in spp_items:
         qty_month = None
@@ -701,24 +734,6 @@ def _build_review_payload(inventory_items: list, recommendations: list, spp_item
             }
         )
 
-    review_rows.sort(
-        key=lambda item: (
-            0 if item["is_unmatched"] else 1,
-            -abs(float(item.get("money_impact") or 0.0)),
-            -abs(float(item.get("deviation_percent") or 0.0)),
-            item["inventory_row"],
-        ),
-    )
-
-    review_top_anomalies = [item for item in review_rows if item["is_anomaly"]]
-    review_top_anomalies.sort(
-        key=lambda item: (
-            abs(float(item.get("money_impact") or 0.0)),
-            abs(float(item.get("deviation_percent") or 0.0)),
-        ),
-        reverse=True,
-    )
-
     return {
         "review_rows": review_rows,
         "top_anomalies": review_top_anomalies[:20],
@@ -727,7 +742,7 @@ def _build_review_payload(inventory_items: list, recommendations: list, spp_item
             "unmatched": unmatched_count,
             "review_rows": len(review_rows),
             "top_anomalies": len(review_top_anomalies),
-            "out_of_scope": out_of_scope_count,
+            "out_of_scope": 0,
         },
     }
 

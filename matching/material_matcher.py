@@ -545,6 +545,45 @@ def match_by_ai(
     return results
 
 
+def _is_ai_outage_result(match: MatchResult) -> bool:
+    reason = (match.match_reason or "").lower()
+    return (
+        match.match_method == MatchMethod.AI
+        and not match.matched_spp_rows
+        and (
+            "ai matching failed" in reason
+            or "api" in reason
+            or "429" in reason
+            or "quota" in reason
+            or "connection" in reason
+        )
+    )
+
+
+def _apply_deterministic_fallback(
+    inventory: list[InventoryItem],
+    spp: list[SPPItem],
+    ai_results: dict[int, MatchResult],
+) -> dict[int, MatchResult]:
+    if not ai_results:
+        return ai_results
+    if any(match.matched_spp_rows for match in ai_results.values()):
+        return ai_results
+    if not any(_is_ai_outage_result(match) for match in ai_results.values()):
+        return ai_results
+
+    fallback_results = match_by_article(inventory, spp)
+    fallback_results.update(match_by_regex(inventory, spp, set(fallback_results.keys())))
+    if not fallback_results:
+        return ai_results
+
+    merged = dict(ai_results)
+    for row, fallback in fallback_results.items():
+        fallback.match_reason = f"{fallback.match_reason}; AI unavailable, used deterministic fallback"
+        merged[row] = fallback
+    return merged
+
+
 def match_all(
     inventory: list[InventoryItem],
     spp: list[SPPItem],
@@ -569,6 +608,7 @@ def match_all(
     # Strict AI mode: all rows go through AI matching.
     if force_ai and client:
         results = match_by_ai(inventory, spp, set(), client, system_prompt)
+        results = _apply_deterministic_fallback(inventory, spp, results)
         for item in inventory:
             if item.row not in results:
                 results[item.row] = MatchResult(
@@ -602,6 +642,7 @@ def match_all(
     results = {}
     if client:
         results = match_by_ai(inventory, spp, set(), client, system_prompt)
+        results = _apply_deterministic_fallback(inventory, spp, results)
 
     for item in inventory:
         if item.row not in results:

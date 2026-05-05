@@ -19,6 +19,9 @@ const state = {
     coordinators: [],
     companies: [],
   },
+  coverage: [],
+  incompleteGroups: [],
+  exportReady: true,
 };
 
 const selectedFiles = [];
@@ -36,10 +39,22 @@ const employeeOdvodyStrhavame = document.getElementById("employeeOdvodyStrhavame
 const companyOptions = document.getElementById("companyOptions");
 
 const DIRTY_KEY = "payrollEmployeeDataDirty";
+const UPLOAD_NOTICE_KEY = "payrollUploadNotice";
 
 const isEmployeeDataDirty = () => window.sessionStorage.getItem(DIRTY_KEY) === "1";
 const markEmployeeDataDirty = () => window.sessionStorage.setItem(DIRTY_KEY, "1");
 const clearEmployeeDataDirty = () => window.sessionStorage.removeItem(DIRTY_KEY);
+const saveUploadNotice = (payload) => window.sessionStorage.setItem(UPLOAD_NOTICE_KEY, JSON.stringify(payload));
+const loadUploadNotice = () => {
+  const raw = window.sessionStorage.getItem(UPLOAD_NOTICE_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    return null;
+  }
+};
+const clearUploadNotice = () => window.sessionStorage.removeItem(UPLOAD_NOTICE_KEY);
 
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, options);
@@ -50,7 +65,9 @@ async function fetchJson(url, options = {}) {
     data = {};
   }
   if (!response.ok) {
-    throw new Error(data.error || `Požadavek selhal (${response.status})`);
+    const error = new Error(data.error || `Požadavek selhal (${response.status})`);
+    error.details = data.details || [];
+    throw error;
   }
   return data;
 }
@@ -133,6 +150,21 @@ function renderWarnings(warnings, { hideWhenEmpty = false } = {}) {
     return hideWhenEmpty ? '<span class="muted">&mdash;</span>' : "Bez upozornění";
   }
   return `<ul class="warning-list">${warnings.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
+}
+
+function renderCoverageWarnings(groups) {
+  if (!groups || !groups.length) return "";
+  const labels = {
+    prehled_mezd: "Přehled mezd",
+    socialka: "Sociálka",
+    zdravotka: "Zdravotka",
+  };
+  return groups.map((item) => {
+    const companyName = item.company_name || "Neznámá firma";
+    const periodName = item.period || "Neznámé období";
+    const missing = (item.missing_types || []).map((code) => labels[code] || code).join(", ");
+    return `• <strong>${escapeHtml(companyName)}</strong> (${escapeHtml(periodName)}): chybí ${escapeHtml(missing)}`;
+  }).join("<br>");
 }
 
 function renderControlSumCell(row) {
@@ -246,7 +278,11 @@ async function loadImports() {
 
 async function loadPreview(importId) {
   state.currentImportId = importId;
-  return fetchJson(api(`/api/imports/${importId}/preview`));
+  const data = await fetchJson(api(`/api/imports/${importId}/preview`));
+  state.coverage = data.coverage || [];
+  state.incompleteGroups = data.incomplete_groups || [];
+  state.exportReady = data.export_ready !== false;
+  return data;
 }
 
 async function loadMetadata() {
@@ -444,16 +480,39 @@ async function loadEmployees() {
 function updateReviewNotice() {
   const reviewNotice = document.getElementById("reviewNotice");
   if (!reviewNotice) return;
-  if (isEmployeeDataDirty()) {
-    showNotice(
-      reviewNotice,
-      `Databáze zaměstnanců byla upravena. Než přejdete na export, spusťte prosím <a href="${BASE_URL}/wizard/${state.currentImportId}/recompute" data-nav>přepočet přehledu</a>.`,
-      "warning"
+  const messages = [];
+  let noticeType = "info";
+  const uploadNotice = loadUploadNotice();
+
+  if (uploadNotice?.skipped_files?.length) {
+    noticeType = "warning";
+    messages.push(
+      `Některé soubory se nepodařilo načíst. Zpracováno: <strong>${uploadNotice.processed_files?.length || 0}</strong>, přeskočeno: <strong>${uploadNotice.skipped_files.length}</strong>.<br>${uploadNotice.skipped_files.map((item) => `• <strong>${escapeHtml(item.filename || "soubor")}</strong>: ${escapeHtml(item.error || "chyba při zpracování")}`).join("<br>")}`
     );
+  }
+
+  if (isEmployeeDataDirty()) {
+    noticeType = "warning";
+    messages.push(
+      `Databáze zaměstnanců byla upravena. Než přejdete na export, spusťte prosím <a href="${BASE_URL}/wizard/${state.currentImportId}/recompute" data-nav>přepočet přehledu</a>.`
+    );
+  }
+
+  if (state.incompleteGroups.length) {
+    noticeType = "warning";
+    messages.push(
+      `Export je zatím blokovaný, protože pro některé firmy chybí kompletní sada reportů.<br>${renderCoverageWarnings(state.incompleteGroups)}`
+    );
+  }
+
+  if (messages.length) {
+    showNotice(reviewNotice, messages.join("<br><br>"), noticeType);
     installNavigationTransitions();
+    clearUploadNotice();
     return;
   }
   hideNotice(reviewNotice);
+  clearUploadNotice();
 }
 
 async function handleEmployeeFormSubmit(event) {
@@ -594,6 +653,10 @@ async function initWizardUpload() {
         method: "POST",
         body: formData,
       });
+      saveUploadNotice({
+        processed_files: data.processed_files || [],
+        skipped_files: data.skipped_files || [],
+      });
       clearEmployeeDataDirty();
       selectedFiles.length = 0;
       renderSelectedFiles();
@@ -656,18 +719,36 @@ async function initWizardRecompute() {
   });
 }
 
-function initWizardExport() {
+async function initWizardExport() {
   const exportButton = document.getElementById("exportButton");
   const exportPanel = exportButton?.closest(".screen-panel");
   if (!exportButton) return;
 
+  const ensureExportNotice = () => {
+    let notice = exportPanel?.querySelector("[data-export-notice]");
+    if (!notice) {
+      notice = document.createElement("div");
+      notice.dataset.exportNotice = "1";
+      exportPanel?.prepend(notice);
+    }
+    return notice;
+  };
+
   if (isEmployeeDataDirty()) {
     exportButton.disabled = true;
-    const warning = document.createElement("div");
+    const warning = ensureExportNotice();
     warning.className = "notice warning";
     warning.innerHTML = `Než stáhnete XLSX, spusťte nejprve <a href="${BASE_URL}/wizard/${state.currentImportId}/recompute" data-nav>přepočet přehledu</a>.`;
-    exportPanel?.prepend(warning);
     installNavigationTransitions();
+    return;
+  }
+
+  await loadPreview(state.currentImportId);
+  if (!state.exportReady) {
+    exportButton.disabled = true;
+    const warning = ensureExportNotice();
+    warning.className = "notice warning";
+    warning.innerHTML = `Export je zatím blokovaný, protože import není kompletní.<br>${renderCoverageWarnings(state.incompleteGroups)}`;
     return;
   }
 
@@ -693,7 +774,8 @@ function initWizardExport() {
         }, index * 300);
       });
     } catch (error) {
-      alert(`Nepodařilo se vytvořit export: ${error.message}`);
+      const suffix = error.details?.length ? `\n${error.details.join("\n")}` : "";
+      alert(`Nepodařilo se vytvořit export: ${error.message}${suffix}`);
     } finally {
       exportButton.disabled = false;
       exportButton.textContent = originalLabel;
@@ -829,7 +911,7 @@ async function init() {
   } else if (pageId === "wizard" && pageStep === "recompute") {
     await initWizardRecompute();
   } else if (pageId === "wizard" && pageStep === "export") {
-    initWizardExport();
+    await initWizardExport();
   } else if (pageId === "employees") {
     await initEmployeesPage();
   } else if (pageId === "history") {

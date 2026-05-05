@@ -116,3 +116,29 @@ class WriteoffRecommendation(BaseModel):
     status: AnomalyStatus = AnomalyStatus.RED_FLAG
     match_method: MatchMethod = MatchMethod.UNMATCHED
     deviation_percent: Optional[float] = None
+
+
+class SPPCoverageRec(BaseModel):
+    """Coverage result for a single active-month SPP row.
+
+    Primary unit of analysis in the SPP-centric review:
+    each active SPP row is checked for whether inventory covers it.
+    """
+    spp_row: int                          # internal row id
+    spp_source_row: int                   # row number in the source Excel
+    spp_sheet: str
+    spp_name: str
+    spp_unit: Optional[str] = None
+    spp_qty_month: Optional[float] = None  # expected quantity for this month
+    spp_total_month: Optional[float] = None
+
+    # Inventory coverage
+    covered_inv_rows: list[int] = Field(default_factory=list)
+    covered_inv_names: list[str] = Field(default_factory=list)
+    total_inv_deviation: float = 0.0      # sum of |deviation| from matched inventory
+
+    # Result
+    delta: Optional[float] = None         # spp_qty_month - total_inv_deviation
+    deviation_percent: Optional[float] = None
+    status: AnomalyStatus = AnomalyStatus.RED_FLAG
+    reason: str = ""
