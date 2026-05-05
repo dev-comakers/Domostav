@@ -6,14 +6,16 @@ import importlib
 import hashlib
 import json
 import os
+import queue
 import re
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
 import uuid
 
 import openpyxl
-from flask import Flask, g, jsonify, redirect, render_template, request, send_from_directory, session, url_for
+from flask import Flask, Response, g, jsonify, redirect, render_template, request, send_from_directory, session, stream_with_context, url_for
 
 from auth import (
     ROLE_DEFINITIONS,
@@ -1081,8 +1083,6 @@ def analyze():
     period_month = (form.get("period_month") or datetime.now().strftime("%Y-%m")).strip()
     project_prompt = form.get("project_prompt") or ""
     no_ai = _bool(form.get("no_ai"))
-    if no_ai:
-        return jsonify({"error": "AI mode is required. Vypnete 'Rezim bez AI' a spustte znovu."}), 400
     auto_map = not _bool(form.get("disable_auto_map"))
 
     spp = files.get("spp")
@@ -1119,54 +1119,69 @@ def analyze():
     if inv_mapping_override is None:
         inv_mapping_override = store.get_mapping(project_code, "inventory")
 
-    try:
-        result = _run_pipeline(
-            project_code=project_code,
-            spp_path=spp_path,
-            inventory_path=inventory_path,
-            period_month=period_month,
-            no_ai=no_ai,
-            auto_map=auto_map,
-            spp_mapping_override=spp_mapping_override,
-            inv_mapping_override=inv_mapping_override,
-            project_prompt=project_prompt,
-            rules_path=rules_path,
-            nomenclature_path=nomenclature_path,
-            nf45_path=nf45_path,
-            generate_excel=False,
-        )
-    except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+    # Run the heavy pipeline in a background thread and stream heartbeats to
+    # keep the nginx proxy connection alive (default proxy_read_timeout = 60 s).
+    # A single space is a valid JSON leading-whitespace character, so the
+    # browser's response.json() will still parse correctly once the real
+    # payload arrives.
+    result_queue: queue.Queue = queue.Queue()
 
-    if result["mappings"]["spp"]:
-        store.save_mapping(project_code, "spp", result["mappings"]["spp"])
-    if result["mappings"]["inventory"]:
-        store.save_mapping(project_code, "inventory", result["mappings"]["inventory"])
-    _write_draft_artifacts(spp_path, result)
+    def _background_pipeline() -> None:
+        try:
+            result = _run_pipeline(
+                project_code=project_code,
+                spp_path=spp_path,
+                inventory_path=inventory_path,
+                period_month=period_month,
+                no_ai=no_ai,
+                auto_map=auto_map,
+                spp_mapping_override=spp_mapping_override,
+                inv_mapping_override=inv_mapping_override,
+                project_prompt=project_prompt,
+                rules_path=rules_path,
+                nomenclature_path=nomenclature_path,
+                nf45_path=nf45_path,
+                generate_excel=False,
+            )
+            if result["mappings"]["spp"]:
+                store.save_mapping(project_code, "spp", result["mappings"]["spp"])
+            if result["mappings"]["inventory"]:
+                store.save_mapping(project_code, "inventory", result["mappings"]["inventory"])
+            _write_draft_artifacts(spp_path, result)
 
-    draft_id = uuid.uuid4().hex
-    store.create_analysis_draft(
-        draft_id=draft_id,
-        project_code=project_code,
-        project_name=project_name,
-        period_month=period_month,
-        spp_path=spp_path,
-        inventory_path=inventory_path,
-        nf45_path=nf45_path,
-        rules_path=rules_path,
-        nomenclature_path=nomenclature_path,
-        project_prompt=project_prompt,
-        spp_mapping=result["mappings"]["spp"],
-        inventory_mapping=result["mappings"]["inventory"],
-    )
+            draft_id = uuid.uuid4().hex
+            store.create_analysis_draft(
+                draft_id=draft_id,
+                project_code=project_code,
+                project_name=project_name,
+                period_month=period_month,
+                spp_path=spp_path,
+                inventory_path=inventory_path,
+                nf45_path=nf45_path,
+                rules_path=rules_path,
+                nomenclature_path=nomenclature_path,
+                project_prompt=project_prompt,
+                spp_mapping=result["mappings"]["spp"],
+                inventory_mapping=result["mappings"]["inventory"],
+            )
+            result_queue.put({"ok": True, "draft_id": draft_id, "result": _strip_export_artifacts(result)})
+        except Exception as exc:
+            result_queue.put({"error": str(exc)})
 
-    return jsonify(
-        {
-            "ok": True,
-            "draft_id": draft_id,
-            "result": _strip_export_artifacts(result),
-        }
-    )
+    threading.Thread(target=_background_pipeline, daemon=True).start()
+
+    def _generate():
+        while True:
+            try:
+                data = result_queue.get(timeout=25)
+                yield json.dumps(data, ensure_ascii=False)
+                return
+            except queue.Empty:
+                # Heartbeat: a JSON-safe whitespace char keeps nginx from
+                # closing the proxy connection before analysis is done.
+                yield " "
+
+    return Response(stream_with_context(_generate()), content_type="application/json")
 
 
 @app.post("/api/review/recalculate")

@@ -3292,10 +3292,15 @@
     setBusy(true, "analysis");
     try {
       const data = await fetchJson("/api/analyze", { method: "POST", body: form });
+      if (data.error) throw new Error(data.error);
       state.draftId = data.draft_id || null;
       const k = data.result?.kpis || {};
       renderReview(data.result?.review || null);
       setRunStatus(`Kontrola pripravena. Shoda ${k.matched_percent ?? "-"}%, kriticke ${k.red_flags_percent ?? "-"}. Upravte radky bez shody a potom finalizujte.`);
+      const panel = document.getElementById("reviewPanel");
+      if (panel && panel.classList.contains("show")) {
+        panel.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
     } catch (e) {
       setRunStatus(`Chyba analyzy: ${e.message}`, true);
     } finally {
