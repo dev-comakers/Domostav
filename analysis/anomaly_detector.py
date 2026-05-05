@@ -294,6 +294,25 @@ def analyze_spp_centric(
 
     inv_by_row = {i.row: i for i in inventory}
 
+    # Service/labour keywords — SPP rows whose names start with or match these
+    # tokens are installation work or commissioning, not physical materials.
+    # They can never have a warehouse write-off entry, so we mark them WARNING
+    # (needs human review) instead of RED_FLAG.
+    _SERVICE_TOKENS = (
+        "montáž", "montaz", "montage",
+        "proplach", "desinfekce", "desinfekc",
+        "zkouška", "zkoušky", "zkousky", "zkouska",
+        "tlakova zkouska", "tlaková zkouška",
+        "revize", "seřízení", "serizeni",
+        "uvedení do provozu", "uveden",
+        "doprava", "zabudování",
+        "demontáž", "demontaz",
+    )
+
+    def _is_service_item(name: str) -> bool:
+        n = name.strip().lower()
+        return any(n.startswith(tok) or f" {tok}" in n for tok in _SERVICE_TOKENS)
+
     # Build reverse map: spp_row → set of inventory rows matched to it.
     # Exclude consumables — they are always OK and don't affect SPP coverage.
     reverse: dict[int, set[int]] = {}
@@ -333,14 +352,18 @@ def analyze_spp_centric(
             deviation_pct = abs(delta) / qty_month * 100
 
         if not is_covered:
-            if qty_month is not None and qty_month > 0:
+            if _is_service_item(spp.name):
+                # Installation, commissioning, testing — no warehouse item expected
+                status = AnomalyStatus.WARNING
+                reason = "Služba / montáž — položka ze skladu se neočekává (montáž, zkoušky, proplach apod.)"
+            elif qty_month is not None and qty_month > 0:
                 # We know how much should be there AND nothing was found → real anomaly
                 status = AnomalyStatus.RED_FLAG
                 reason = "Nepokryto — žádná položka ze skladu nebyla přiřazena k této práci"
             else:
-                # No quantity calculable (service item / equipment / kpl row) → can't verify
+                # No quantity calculable (equipment / kpl row without unit price) → can't verify
                 status = AnomalyStatus.WARNING
-                reason = "Nelze ověřit — plán za měsíc neobsahuje množství (možná služba nebo zařízení bez zásoby)"
+                reason = "Nelze ověřit — plán za měsíc neobsahuje množství (možná zařízení bez zásoby)"
         elif deviation_pct is not None:
             if deviation_pct <= tol_ok * 100:
                 status = AnomalyStatus.OK

@@ -1907,6 +1907,7 @@
         <div class="review-toolbar">
           <div class="review-filters">
             <button class="review-filter-btn active" type="button" data-review-filter="all">Vše problémové</button>
+            <button class="review-filter-btn" type="button" data-review-filter="red_only">Jen KRITICKE</button>
             <button class="review-filter-btn" type="button" data-review-filter="unmatched">Jen bez pokrytí</button>
             <button class="review-filter-btn" type="button" data-review-filter="anomalies">Jen anomálie</button>
           </div>
@@ -2546,6 +2547,9 @@
 
   function getFilteredReviewRows(review) {
     const rows = review?.review_rows || [];
+    if (state.reviewFilter === "red_only") {
+      return rows.filter((row) => row.status === "RED_FLAG");
+    }
     if (state.reviewFilter === "unmatched") {
       return rows.filter((row) => row.is_unmatched);
     }
@@ -2563,6 +2567,7 @@
     if (caption) {
       const labels = {
         all: "Vsechny problemove SPP radky",
+        red_only: "Jen KRITICKE radky (realne anomalie)",
         unmatched: "Jen radky bez pokrytí ze skladu",
         anomalies: "Jen anomalni radky",
       };
